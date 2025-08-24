@@ -190,6 +190,8 @@ export type GameEvent =
   | 'word-started'
   | 'word-completed'
   | 'word-failed'
+  | 'word-locked'
+  | 'word-unlocked'
   | 'action-executed'
   | 'damage-dealt'
   | 'healing-applied'
@@ -202,9 +204,11 @@ export type GameEvent =
 
 export interface GameEventData {
   'state-change': { oldState: GameState; newState: GameState };
-  'word-started': { word: Word; type: ActionType };
+  'word-started': { healWord: Word; attackWord: Word };
   'word-completed': { completedWord: CompletedWord; result: ActionResult };
-  'word-failed': { word: Word; typedText: string; errors: number };
+  'word-failed': { reason: string; input: string; combo: number };
+  'word-locked': { wordType: 'heal' | 'attack'; word: Word; input: string };
+  'word-unlocked': { reason: string };
   'action-executed': { result: ActionResult };
   'damage-dealt': { damage: number; critical: boolean; enemyHp: number };
   'healing-applied': { healing: number; critical: boolean; playerHp: number };

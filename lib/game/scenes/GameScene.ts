@@ -21,7 +21,6 @@ export interface GameSceneElements {
   // Word Displays
   attackWordText: Phaser.GameObjects.Text;
   healWordText: Phaser.GameObjects.Text;
-  guardWordText: Phaser.GameObjects.Text;
   inputText: Phaser.GameObjects.Text;
   
   // Characters
@@ -65,15 +64,13 @@ export class GameScene extends Phaser.Scene {
     ENEMY_X: 650,
     ENEMY_Y: 250,
     
-    // Words
-    ATTACK_WORD_X: 150,
-    ATTACK_WORD_Y: 400,
-    HEAL_WORD_X: 400,
-    HEAL_WORD_Y: 400,
-    GUARD_WORD_X: 650,
-    GUARD_WORD_Y: 400,
-    INPUT_X: 400,
-    INPUT_Y: 500,
+    // Words - Two-choice layout (bottom center)
+    HEAL_WORD_X: 300,    // Left side (heal)
+    HEAL_WORD_Y: 450,
+    ATTACK_WORD_X: 500,  // Right side (attack)
+    ATTACK_WORD_Y: 450,
+    INPUT_X: 400,        // Input display above words
+    INPUT_Y: 400,
   };
 
   constructor() {
@@ -201,48 +198,53 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createWordDisplays(): void {
-    // Attack word (red)
-    this.elements.attackWordText = this.add.text(this.LAYOUT.ATTACK_WORD_X, this.LAYOUT.ATTACK_WORD_Y, '', {
-      fontSize: '20px',
-      color: '#e74c3c',
-      fontFamily: 'Courier New',
-      backgroundColor: '#2c3e50',
-      padding: { x: 8, y: 4 },
-    }).setOrigin(0.5);
-
-    this.add.text(this.LAYOUT.ATTACK_WORD_X, this.LAYOUT.ATTACK_WORD_Y - 30, 'ATTACK', {
-      fontSize: '12px',
-      color: '#e74c3c',
-      fontFamily: 'Arial',
-    }).setOrigin(0.5);
-
-    // Heal word (green)
+    // Heal word (left side, green)
     this.elements.healWordText = this.add.text(this.LAYOUT.HEAL_WORD_X, this.LAYOUT.HEAL_WORD_Y, '', {
-      fontSize: '20px',
+      fontSize: '24px',
       color: '#27ae60',
       fontFamily: 'Courier New',
       backgroundColor: '#2c3e50',
-      padding: { x: 8, y: 4 },
+      padding: { x: 12, y: 8 },
     }).setOrigin(0.5);
 
-    this.add.text(this.LAYOUT.HEAL_WORD_X, this.LAYOUT.HEAL_WORD_Y - 30, 'HEAL', {
-      fontSize: '12px',
+    this.add.text(this.LAYOUT.HEAL_WORD_X, this.LAYOUT.HEAL_WORD_Y - 40, 'HEAL', {
+      fontSize: '16px',
       color: '#27ae60',
-      fontFamily: 'Arial',
+      fontFamily: 'Arial Black',
     }).setOrigin(0.5);
 
-    // Guard word (yellow)
-    this.elements.guardWordText = this.add.text(this.LAYOUT.GUARD_WORD_X, this.LAYOUT.GUARD_WORD_Y, '', {
-      fontSize: '20px',
-      color: '#f1c40f',
+    // Attack word (right side, red)
+    this.elements.attackWordText = this.add.text(this.LAYOUT.ATTACK_WORD_X, this.LAYOUT.ATTACK_WORD_Y, '', {
+      fontSize: '24px',
+      color: '#e74c3c',
       fontFamily: 'Courier New',
       backgroundColor: '#2c3e50',
-      padding: { x: 8, y: 4 },
+      padding: { x: 12, y: 8 },
     }).setOrigin(0.5);
 
-    this.add.text(this.LAYOUT.GUARD_WORD_X, this.LAYOUT.GUARD_WORD_Y - 30, 'GUARD', {
-      fontSize: '12px',
-      color: '#f1c40f',
+    this.add.text(this.LAYOUT.ATTACK_WORD_X, this.LAYOUT.ATTACK_WORD_Y - 40, 'ATTACK', {
+      fontSize: '16px',
+      color: '#e74c3c',
+      fontFamily: 'Arial Black',
+    }).setOrigin(0.5);
+
+    // Visual indicators for left/right
+    this.add.text(this.LAYOUT.HEAL_WORD_X - 80, this.LAYOUT.HEAL_WORD_Y, '←', {
+      fontSize: '20px',
+      color: '#27ae60',
+      fontFamily: 'Arial Black',
+    }).setOrigin(0.5);
+
+    this.add.text(this.LAYOUT.ATTACK_WORD_X + 80, this.LAYOUT.ATTACK_WORD_Y, '→', {
+      fontSize: '20px',
+      color: '#e74c3c',
+      fontFamily: 'Arial Black',
+    }).setOrigin(0.5);
+
+    // Center divider
+    this.add.text(400, this.LAYOUT.HEAL_WORD_Y, '|', {
+      fontSize: '30px',
+      color: '#7f8c8d',
       fontFamily: 'Arial',
     }).setOrigin(0.5);
   }
@@ -503,35 +505,59 @@ export class GameScene extends Phaser.Scene {
   private updateWordDisplays(): void {
     if (!this.gameState) return;
 
-    // Update word texts
-    if (this.elements.attackWordText) {
-      this.elements.attackWordText.setText(this.gameState.currentWords.attack?.text || '');
-      
-      // Highlight if locked
-      if (this.gameState.locked === 'attack') {
-        this.elements.attackWordText.setStyle({ backgroundColor: '#c0392b' });
-      } else {
-        this.elements.attackWordText.setStyle({ backgroundColor: '#2c3e50' });
-      }
-    }
-
+    // Update heal word (left side)
     if (this.elements.healWordText) {
       this.elements.healWordText.setText(this.gameState.currentWords.heal?.text || '');
       
       if (this.gameState.locked === 'heal') {
-        this.elements.healWordText.setStyle({ backgroundColor: '#1e8449' });
+        // Active/locked heal word - bright green with highlight
+        this.elements.healWordText.setStyle({ 
+          backgroundColor: '#1e8449',
+          color: '#ffffff'
+        });
+        this.elements.healWordText.setAlpha(1.0);
+      } else if (this.gameState.locked === 'attack') {
+        // Inactive/grayed out heal word
+        this.elements.healWordText.setStyle({ 
+          backgroundColor: '#34495e',
+          color: '#7f8c8d'
+        });
+        this.elements.healWordText.setAlpha(0.5);
       } else {
-        this.elements.healWordText.setStyle({ backgroundColor: '#2c3e50' });
+        // No lock - normal appearance
+        this.elements.healWordText.setStyle({ 
+          backgroundColor: '#2c3e50',
+          color: '#27ae60'
+        });
+        this.elements.healWordText.setAlpha(1.0);
       }
     }
 
-    if (this.elements.guardWordText) {
-      this.elements.guardWordText.setText(this.gameState.currentWords.guard?.text || '');
+    // Update attack word (right side)
+    if (this.elements.attackWordText) {
+      this.elements.attackWordText.setText(this.gameState.currentWords.attack?.text || '');
       
-      if (this.gameState.locked === 'guard') {
-        this.elements.guardWordText.setStyle({ backgroundColor: '#b7950b' });
+      if (this.gameState.locked === 'attack') {
+        // Active/locked attack word - bright red with highlight
+        this.elements.attackWordText.setStyle({ 
+          backgroundColor: '#c0392b',
+          color: '#ffffff'
+        });
+        this.elements.attackWordText.setAlpha(1.0);
+      } else if (this.gameState.locked === 'heal') {
+        // Inactive/grayed out attack word
+        this.elements.attackWordText.setStyle({ 
+          backgroundColor: '#34495e',
+          color: '#7f8c8d'
+        });
+        this.elements.attackWordText.setAlpha(0.5);
       } else {
-        this.elements.guardWordText.setStyle({ backgroundColor: '#2c3e50' });
+        // No lock - normal appearance
+        this.elements.attackWordText.setStyle({ 
+          backgroundColor: '#2c3e50',
+          color: '#e74c3c'
+        });
+        this.elements.attackWordText.setAlpha(1.0);
       }
     }
   }
