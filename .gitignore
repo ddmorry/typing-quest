@@ -32,8 +32,9 @@ next-env.d.ts
 coverage/
 .nyc_output/
 
-# IDE
-.vscode/
+# IDE (keep essential settings, ignore personal configs)
+.vscode/launch.json
+.vscode/tasks.json
 .idea/
 *.swp
 *.swo
