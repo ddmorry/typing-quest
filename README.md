@@ -13,7 +13,7 @@ A typing RPG browser game designed for English learners, particularly for interm
 
 ### Prerequisites
 
-- Node.js (version TBD)
+- Node.js 18+ (for Next.js 15 support)
 - Docker (for Supabase local development)
 - Supabase CLI
 
@@ -47,12 +47,13 @@ supabase stop        # Stop local Supabase instance
 supabase db reset    # Reset database with latest migrations and seed data
 supabase status      # Check status of local services
 
-# Application (To Be Implemented)
+# Application (✅ Ready - TYP-16 Complete)
+npm install          # Install dependencies
 npm run dev          # Start development server
 npm run build        # Build for production
 npm run lint         # Run linting
 npm run typecheck    # Run TypeScript type checking
-npm test             # Run tests
+npm test             # Run tests (TBD)
 ```
 
 ## 🏗️ Architecture
