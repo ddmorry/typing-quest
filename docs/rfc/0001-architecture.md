@@ -44,29 +44,29 @@ graph TB
         B --> C[Game Page - CSR Island]
         C --> D[Results Page - SSR/RSC]
         D --> E[Dashboard - RSC Protected]
-        
+
         C --> F[Phaser 3 Engine - Lazy Loaded]
         F --> G[GameAdapter Interface]
         G --> H[PhaserAdapter Implementation]
-        
+
         I[Zustand Stores] --> J[HUD Components]
         I --> K[Settings State]
         I --> L[Session State]
     end
-    
+
     subgraph "Next.js App Router"
         M[app/ Route Structure]
         N[middleware.ts - Auth/Rate Limiting]
         O[API Routes - Route Handlers]
     end
-    
+
     subgraph "Supabase Backend"
         P[PostgreSQL Database]
         Q[RLS Policies]
         R[Auth Service]
         S[Real-time Subscriptions]
     end
-    
+
     C -.-> O
     O --> P
     I --> S
@@ -80,8 +80,9 @@ graph TB
 ### 3.1 Implementation Strategy
 
 The `/game` route is implemented as a Client-Side Rendering (CSR) island to ensure:
+
 - **Phaser engine isolation** from SSR constraints
-- **Real-time performance** without server round-trips  
+- **Real-time performance** without server round-trips
 - **Bundle code splitting** for optimal loading
 
 ```typescript
@@ -90,7 +91,7 @@ The `/game` route is implemented as a Client-Side Rendering (CSR) island to ensu
 import dynamic from 'next/dynamic';
 import { GameLoader } from '@/components/ui/GameLoader';
 
-const GameCanvas = dynamic(() => import('@/features/game/GameCanvas'), { 
+const GameCanvas = dynamic(() => import('@/features/game/GameCanvas'), {
   ssr: false,
   loading: () => <GameLoader />
 });
@@ -106,13 +107,13 @@ export default function GamePage() {
 
 ### 3.2 Route Boundaries
 
-| Route | Rendering | Bundle | Purpose |
-|-------|-----------|---------|---------|
-| `/` | SSG/SSR | ~15KB | SEO Landing |
-| `/settings` | RSC + Client | ~25KB | Configuration |
-| **`/game`** | **CSR Island** | **+380KB** | **Game Engine** |
-| `/results` | RSC | ~20KB | Session Summary |
-| `/dashboard` | RSC Protected | ~30KB | User Analytics |
+| Route        | Rendering      | Bundle     | Purpose         |
+| ------------ | -------------- | ---------- | --------------- |
+| `/`          | SSG/SSR        | ~15KB      | SEO Landing     |
+| `/settings`  | RSC + Client   | ~25KB      | Configuration   |
+| **`/game`**  | **CSR Island** | **+380KB** | **Game Engine** |
+| `/results`   | RSC            | ~20KB      | Session Summary |
+| `/dashboard` | RSC Protected  | ~30KB      | User Analytics  |
 
 ### 3.3 CSR Island Benefits
 
@@ -202,12 +203,12 @@ module.exports = nextConfig;
 
 ### 4.3 Performance Targets
 
-| Metric | Target | Implementation |
-|--------|--------|----------------|
-| **Initial JS (non-game)** | < 120KB gzip | RSC + Code splitting |
-| **Game bundle** | < 400KB gzip | Phaser + GameAdapter |
-| **Game load time** | < 2s on 3G | Progressive loading |
-| **FPS** | 60fps (min 30fps) | Optimized render loop |
+| Metric                    | Target            | Implementation        |
+| ------------------------- | ----------------- | --------------------- |
+| **Initial JS (non-game)** | < 120KB gzip      | RSC + Code splitting  |
+| **Game bundle**           | < 400KB gzip      | Phaser + GameAdapter  |
+| **Game load time**        | < 2s on 3G        | Progressive loading   |
+| **FPS**                   | 60fps (min 30fps) | Optimized render loop |
 
 ---
 
@@ -259,7 +260,7 @@ export interface GameAdapter {
   on(event: GameEvent, callback: (data: any) => void): () => void;
 }
 
-export type GameEvent = 
+export type GameEvent =
   | 'state-change'
   | 'word-completed'
   | 'damage-dealt'
@@ -287,18 +288,18 @@ export class PhaserAdapter implements GameAdapter {
       parent: element,
       physics: {
         default: 'arcade',
-        arcade: { gravity: { y: 0 } }
+        arcade: { gravity: { y: 0 } },
       },
       scene: GameScene,
       render: {
         antialias: true,
-        pixelArt: false
-      }
+        pixelArt: false,
+      },
     };
 
     this.game = new Phaser.Game(phaserConfig);
     this.scene = this.game.scene.getScene('GameScene') as GameScene;
-    
+
     // Setup event bridging
     this.setupEventBridge();
   }
@@ -308,17 +309,17 @@ export class PhaserAdapter implements GameAdapter {
 
     const result = this.scene.handleKeystroke(key, this.state);
     this.updateState(result);
-    
+
     // Emit events for UI updates
     this.eventBus.emit('state-change', this.state);
   }
 
   private setupEventBridge(): void {
-    this.scene?.events.on('word-completed', (data) => {
+    this.scene?.events.on('word-completed', data => {
       this.eventBus.emit('word-completed', data);
     });
-    
-    this.scene?.events.on('damage-dealt', (data) => {
+
+    this.scene?.events.on('damage-dealt', data => {
       this.eventBus.emit('damage-dealt', data);
     });
   }
@@ -344,10 +345,10 @@ interface SessionStore {
   // Session State
   sessionId: string | null;
   status: 'IDLE' | 'CONFIGURING' | 'PLAYING' | 'PAUSED' | 'ENDED';
-  
+
   // Game State
   gameState: GameState | null;
-  
+
   // Statistics
   stats: {
     wpm: number;
@@ -357,7 +358,7 @@ interface SessionStore {
     healCount: number;
     attackCount: number;
   };
-  
+
   // Actions
   startSession: (config: GameConfig) => Promise<void>;
   updateGameState: (state: Partial<GameState>) => void;
@@ -371,23 +372,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   status: 'IDLE',
   gameState: null,
   stats: initialStats,
-  
-  startSession: async (config) => {
+
+  startSession: async config => {
     const sessionId = await createSession(config);
     set({ sessionId, status: 'PLAYING' });
   },
-  
-  updateGameState: (newState) => {
-    set((state) => ({
+
+  updateGameState: newState => {
+    set(state => ({
       gameState: { ...state.gameState, ...newState },
-      stats: calculateStats(newState)
+      stats: calculateStats(newState),
     }));
   },
-  
+
   endSession: async () => {
     const { sessionId, stats } = get();
     return await finalizeSession(sessionId, stats);
-  }
+  },
 }));
 ```
 
@@ -400,7 +401,7 @@ interface SettingsStore {
   difficulty: 'EASY' | 'NORMAL' | 'HARD';
   packId: string;
   durationSec: number;
-  
+
   // Accessibility Settings
   a11y: {
     highContrast: boolean;
@@ -411,7 +412,7 @@ interface SettingsStore {
     soundEnabled: boolean;
     voiceEnabled: boolean;
   };
-  
+
   // Actions
   updateDifficulty: (level: Difficulty) => void;
   updateA11ySettings: (settings: Partial<A11ySettings>) => void;
@@ -420,18 +421,18 @@ interface SettingsStore {
 
 export const useSettingsStore = create(
   persist<SettingsStore>(
-    (set) => ({
+    set => ({
       difficulty: 'NORMAL',
       packId: 'ngsl-basic',
       durationSec: 300,
       a11y: defaultA11ySettings,
-      
-      updateDifficulty: (difficulty) => set({ difficulty }),
-      updateA11ySettings: (newSettings) => 
-        set((state) => ({ 
-          a11y: { ...state.a11y, ...newSettings } 
+
+      updateDifficulty: difficulty => set({ difficulty }),
+      updateA11ySettings: newSettings =>
+        set(state => ({
+          a11y: { ...state.a11y, ...newSettings },
         })),
-      resetToDefaults: () => set(defaultSettings)
+      resetToDefaults: () => set(defaultSettings),
     }),
     { name: 'typing-rpg-settings' }
   )
@@ -453,14 +454,14 @@ sequenceDiagram
     API-->>Store: sessionId
     Store->>Adapter: start(sessionData)
     Adapter->>Scene: initialize(config)
-    
+
     loop Game Loop
         Scene->>Adapter: keystroke events
         Adapter->>Store: updateGameState()
         Store->>UI: state change
         UI->>UI: HUD updates
     end
-    
+
     Adapter->>API: logAttempt(data)
     Store->>API: endSession(stats)
 ```
@@ -524,19 +525,19 @@ CREATE TABLE attempts_2024_q4 PARTITION OF attempts
 -- Comprehensive session access policies
 CREATE POLICY "sessions_select_policy" ON public.sessions FOR SELECT
   USING (
-    CASE 
-      WHEN user_id IS NULL THEN 
+    CASE
+      WHEN user_id IS NULL THEN
         -- Guest sessions: accessible for limited time or by device fingerprint
-        (created_at > NOW() - INTERVAL '7 days' AND 
+        (created_at > NOW() - INTERVAL '7 days' AND
          metadata->>'deviceFingerprint' = current_setting('request.headers', true)::json->>'x-device-id')
-      ELSE 
-        auth.uid() = user_id 
+      ELSE
+        auth.uid() = user_id
     END
   );
 
 CREATE POLICY "sessions_insert_policy" ON public.sessions FOR INSERT
   WITH CHECK (
-    user_id = auth.uid() OR 
+    user_id = auth.uid() OR
     (user_id IS NULL AND metadata->>'deviceFingerprint' IS NOT NULL)
   );
 
@@ -544,11 +545,11 @@ CREATE POLICY "sessions_insert_policy" ON public.sessions FOR INSERT
 CREATE POLICY "attempts_access_policy" ON public.attempts FOR ALL
   USING (
     EXISTS (
-      SELECT 1 FROM public.sessions s 
-      WHERE s.id = session_id 
+      SELECT 1 FROM public.sessions s
+      WHERE s.id = session_id
       AND (
-        (s.user_id = auth.uid()) OR 
-        (s.user_id IS NULL AND s.metadata->>'deviceFingerprint' = 
+        (s.user_id = auth.uid()) OR
+        (s.user_id IS NULL AND s.metadata->>'deviceFingerprint' =
          current_setting('request.headers', true)::json->>'x-device-id')
       )
     )
@@ -568,18 +569,18 @@ BEGIN
   -- Calculate session averages
   SELECT AVG((stats->>'wpm')::NUMERIC) INTO avg_wpm
   FROM public.attempts WHERE session_id = NEW.id;
-  
+
   -- Count perfect accuracy attempts
   SELECT COUNT(*) INTO perfect_acc_count
-  FROM public.attempts 
+  FROM public.attempts
   WHERE session_id = NEW.id AND accuracy = 1.0;
-  
+
   -- Flag suspicious patterns
   IF avg_wpm > 200 OR (perfect_acc_count > 10 AND avg_wpm > 100) THEN
-    NEW.stats = NEW.stats || jsonb_build_object('anomaly_flags', 
+    NEW.stats = NEW.stats || jsonb_build_object('anomaly_flags',
       jsonb_build_array('high_speed', 'perfect_accuracy'));
   END IF;
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -606,8 +607,8 @@ const CreateSessionSchema = z.object({
   difficulty: z.enum(['EASY', 'NORMAL', 'HARD']),
   settings: z.object({
     durationSec: z.number().min(60).max(1800),
-    a11y: z.record(z.boolean()).optional()
-  })
+    a11y: z.record(z.boolean()).optional(),
+  }),
 });
 
 export async function POST(request: Request) {
@@ -617,9 +618,9 @@ export async function POST(request: Request) {
       key: 'session-create',
       request,
       limit: 10,
-      window: '1m'
+      window: '1m',
     });
-    
+
     if (!rateLimitResult.success) {
       return Response.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
@@ -635,11 +636,11 @@ export async function POST(request: Request) {
       .insert({
         pack_id: packId,
         difficulty,
-        metadata: { 
+        metadata: {
           settings,
           clientVersion: request.headers.get('x-client-version'),
-          deviceFingerprint: request.headers.get('x-device-id')
-        }
+          deviceFingerprint: request.headers.get('x-device-id'),
+        },
       })
       .select('id, created_at')
       .single();
@@ -649,7 +650,7 @@ export async function POST(request: Request) {
     return Response.json({ sessionId: session.id });
   } catch (error) {
     return Response.json(
-      { error: 'Failed to create session' }, 
+      { error: 'Failed to create session' },
       { status: 500 }
     );
   }
@@ -661,41 +662,40 @@ export async function POST(request: Request) {
 ```typescript
 // app/api/attempts/batch/route.ts
 export async function POST(request: Request) {
-  const BatchAttemptsSchema = z.array(z.object({
-    sessionId: z.string().uuid(),
-    type: z.enum(['ATTACK', 'HEAL', 'GUARD']),
-    wordId: z.string().uuid(),
-    targetText: z.string().min(1).max(50),
-    ms: z.number().positive().max(30000),
-    errors: z.number().min(0).max(100),
-    accuracy: z.number().min(0).max(1),
-    keystrokePattern: z.record(z.any()).optional()
-  })).max(50); // Limit batch size
+  const BatchAttemptsSchema = z
+    .array(
+      z.object({
+        sessionId: z.string().uuid(),
+        type: z.enum(['ATTACK', 'HEAL', 'GUARD']),
+        wordId: z.string().uuid(),
+        targetText: z.string().min(1).max(50),
+        ms: z.number().positive().max(30000),
+        errors: z.number().min(0).max(100),
+        accuracy: z.number().min(0).max(1),
+        keystrokePattern: z.record(z.any()).optional(),
+      })
+    )
+    .max(50); // Limit batch size
 
   try {
     const attempts = BatchAttemptsSchema.parse(await request.json());
-    
+
     // Server-side validation of metrics
     const validatedAttempts = attempts.map(attempt => ({
       ...attempt,
       // Recalculate WPM server-side to prevent tampering
       wpm: calculateWPMServer(attempt.targetText, attempt.ms),
-      score: calculateScoreServer(attempt)
+      score: calculateScoreServer(attempt),
     }));
 
     const supabase = createClient();
-    const { error } = await supabase
-      .from('attempts')
-      .insert(validatedAttempts);
+    const { error } = await supabase.from('attempts').insert(validatedAttempts);
 
     if (error) throw error;
 
     return Response.json({ success: true, count: attempts.length });
   } catch (error) {
-    return Response.json(
-      { error: 'Failed to log attempts' }, 
-      { status: 500 }
-    );
+    return Response.json({ error: 'Failed to log attempts' }, { status: 500 });
   }
 }
 ```
@@ -715,33 +715,35 @@ export class PerformanceMonitor {
 
   trackFPS(): void {
     let lastTime = performance.now();
-    
+
     const measureFPS = () => {
       const currentTime = performance.now();
       const fps = 1000 / (currentTime - lastTime);
       this.fpsHistory.push(fps);
-      
+
       // Keep only last 100 measurements
       if (this.fpsHistory.length > 100) {
         this.fpsHistory.shift();
       }
-      
+
       lastTime = currentTime;
       requestAnimationFrame(measureFPS);
     };
-    
+
     requestAnimationFrame(measureFPS);
   }
 
   getPerformanceMetrics() {
-    const avgFPS = this.fpsHistory.reduce((sum, fps) => sum + fps, 0) / this.fpsHistory.length;
+    const avgFPS =
+      this.fpsHistory.reduce((sum, fps) => sum + fps, 0) /
+      this.fpsHistory.length;
     const minFPS = Math.min(...this.fpsHistory);
-    
+
     return {
       avgFPS: Math.round(avgFPS),
       minFPS: Math.round(minFPS),
       memoryUsage: performance.memory?.usedJSHeapSize,
-      loadTimes: this.loadTimes
+      loadTimes: this.loadTimes,
     };
   }
 }
@@ -770,7 +772,7 @@ export class GameLoader {
       { type: 'script', url: '/game/game-engine.js', weight: 30 },
       { type: 'image', url: '/sprites/characters.png', weight: 15 },
       { type: 'image', url: '/sprites/ui.png', weight: 10 },
-      { type: 'audio', url: '/sounds/effects.mp3', weight: 5 }
+      { type: 'audio', url: '/sounds/effects.mp3', weight: 5 },
     ];
 
     let loadedWeight = 0;
@@ -862,31 +864,41 @@ export class InputValidator {
 export const rateLimitConfig = {
   sessionCreate: { requests: 5, window: '5m', blockDuration: '15m' },
   attemptLogging: { requests: 300, window: '1m', blockDuration: '5m' },
-  dashboardQuery: { requests: 50, window: '1m', blockDuration: '2m' }
+  dashboardQuery: { requests: 50, window: '1m', blockDuration: '2m' },
 };
 
-export async function rateLimit(config: RateLimitConfig): Promise<RateLimitResult> {
+export async function rateLimit(
+  config: RateLimitConfig
+): Promise<RateLimitResult> {
   const key = `rate_limit:${config.key}:${config.identifier}`;
   const current = await redis.incr(key);
-  
+
   if (current === 1) {
     await redis.expire(key, config.windowSeconds);
   }
 
   const remaining = Math.max(0, config.limit - current);
-  
+
   if (current > config.limit) {
     // Block user for extended period
-    await redis.setex(`blocked:${config.identifier}`, config.blockDurationSeconds, '1');
-    
+    await redis.setex(
+      `blocked:${config.identifier}`,
+      config.blockDurationSeconds,
+      '1'
+    );
+
     return {
       success: false,
       remaining: 0,
-      resetTime: Date.now() + (config.blockDurationSeconds * 1000)
+      resetTime: Date.now() + config.blockDurationSeconds * 1000,
     };
   }
 
-  return { success: true, remaining, resetTime: Date.now() + (config.windowSeconds * 1000) };
+  return {
+    success: true,
+    remaining,
+    resetTime: Date.now() + config.windowSeconds * 1000,
+  };
 }
 ```
 
@@ -903,22 +915,22 @@ export const testingStrategy = {
   unit: {
     scope: ['Game mechanics', 'Combat calculations', 'State management'],
     frameworks: ['Vitest', 'Happy-DOM'],
-    mocking: ['GameAdapter interface', 'Supabase client', 'Phaser engine']
+    mocking: ['GameAdapter interface', 'Supabase client', 'Phaser engine'],
   },
 
   // Integration Tests (20% coverage)
   integration: {
     scope: ['API routes', 'Database operations', 'State synchronization'],
     frameworks: ['Vitest', 'Supertest', 'Supabase Test Client'],
-    environment: ['Test database', 'Mock auth']
+    environment: ['Test database', 'Mock auth'],
   },
 
   // E2E Tests (10% coverage)
   e2e: {
     scope: ['Critical user flows', 'Performance benchmarks', 'A11y compliance'],
     frameworks: ['Playwright', '@axe-core/playwright'],
-    browsers: ['Chromium', 'Firefox', 'Safari', 'Mobile']
-  }
+    browsers: ['Chromium', 'Firefox', 'Safari', 'Mobile'],
+  },
 };
 ```
 
@@ -930,7 +942,7 @@ export class PerformanceTestSuite {
   async testFPSPerformance(): Promise<PerformanceResult> {
     const page = await browser.newPage();
     await page.goto('/game');
-    
+
     // Start performance monitoring
     await page.evaluate(() => {
       window.performanceMonitor = new PerformanceMonitor();
@@ -941,7 +953,7 @@ export class PerformanceTestSuite {
     await this.simulateGameplay(page, { duration: 30000, intensity: 'high' });
 
     // Get performance metrics
-    const metrics = await page.evaluate(() => 
+    const metrics = await page.evaluate(() =>
       window.performanceMonitor.getPerformanceMetrics()
     );
 
@@ -949,23 +961,29 @@ export class PerformanceTestSuite {
       avgFPS: metrics.avgFPS,
       minFPS: metrics.minFPS,
       memoryUsage: metrics.memoryUsage,
-      passed: metrics.avgFPS >= 55 && metrics.minFPS >= 30
+      passed: metrics.avgFPS >= 55 && metrics.minFPS >= 30,
     };
   }
 
   async testBundleSize(): Promise<BundleSizeResult> {
     const stats = await getBundleAnalysis();
-    
+
     const gameBundle = stats.chunks.filter(c => c.name.includes('game'));
     const mainBundle = stats.chunks.filter(c => !c.name.includes('game'));
-    
-    const gameBundleSize = gameBundle.reduce((sum, chunk) => sum + chunk.size, 0);
-    const mainBundleSize = mainBundle.reduce((sum, chunk) => sum + chunk.size, 0);
+
+    const gameBundleSize = gameBundle.reduce(
+      (sum, chunk) => sum + chunk.size,
+      0
+    );
+    const mainBundleSize = mainBundle.reduce(
+      (sum, chunk) => sum + chunk.size,
+      0
+    );
 
     return {
       gameBundleSize,
       mainBundleSize,
-      passed: mainBundleSize < 120 * 1024 && gameBundleSize < 400 * 1024
+      passed: mainBundleSize < 120 * 1024 && gameBundleSize < 400 * 1024,
     };
   }
 }
@@ -984,14 +1002,14 @@ export const environmentConfig = {
     database: 'http://localhost:54321',
     gamePerformance: { fpsTarget: 30, debugMode: true },
     bundleOptimization: false,
-    logLevel: 'debug'
+    logLevel: 'debug',
   },
 
   staging: {
     database: process.env.SUPABASE_STAGING_URL,
     gamePerformance: { fpsTarget: 60, debugMode: false },
     bundleOptimization: true,
-    logLevel: 'warn'
+    logLevel: 'warn',
   },
 
   production: {
@@ -999,12 +1017,12 @@ export const environmentConfig = {
     gamePerformance: { fpsTarget: 60, debugMode: false },
     bundleOptimization: true,
     logLevel: 'error',
-    monitoring: { 
-      performance: true, 
-      errors: true, 
-      analytics: true 
-    }
-  }
+    monitoring: {
+      performance: true,
+      errors: true,
+      analytics: true,
+    },
+  },
 };
 ```
 
@@ -1031,7 +1049,7 @@ jobs:
         run: npm run test:integration
       - name: Bundle size check
         run: npm run test:bundle-size
-      
+
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -1065,10 +1083,10 @@ export class ProductionMonitor {
   trackGamePerformance(sessionId: string, metrics: GameMetrics): void {
     // Track FPS over time
     this.recordMetric(`fps.${sessionId}`, metrics.fps);
-    
+
     // Track memory usage
     this.recordMetric(`memory.${sessionId}`, metrics.memoryMB);
-    
+
     // Track network latency
     this.recordMetric(`latency.${sessionId}`, metrics.apiLatency);
 
@@ -1084,7 +1102,7 @@ export class ProductionMonitor {
       p95FPS: this.getPercentileMetric('fps', 95),
       memoryP95: this.getPercentileMetric('memory', 95),
       errorRate: this.getErrorRate(),
-      activeUsers: this.getActiveUserCount()
+      activeUsers: this.getActiveUserCount(),
     };
   }
 }
@@ -1101,19 +1119,19 @@ export class ErrorTracker {
       error: {
         message: error.message,
         stack: error.stack,
-        type: error.name
+        type: error.name,
       },
       context: {
         sessionId: context.sessionId,
         userId: context.userId,
         gameState: context.gameState,
         userAgent: context.userAgent,
-        url: context.url
+        url: context.url,
       },
       performance: {
         fps: context.currentFPS,
-        memoryUsage: performance.memory?.usedJSHeapSize
-      }
+        memoryUsage: performance.memory?.usedJSHeapSize,
+      },
     };
 
     // Send to monitoring service
@@ -1130,11 +1148,11 @@ export class ErrorTracker {
       /GameAdapter.*failed/,
       /Phaser.*initialization.*error/,
       /Database.*connection.*lost/,
-      /Session.*corrupted/
+      /Session.*corrupted/,
     ];
 
-    return criticalPatterns.some(pattern => 
-      pattern.test(error.message) || pattern.test(error.stack || '')
+    return criticalPatterns.some(
+      pattern => pattern.test(error.message) || pattern.test(error.stack || '')
     );
   }
 }
@@ -1151,21 +1169,28 @@ export class ErrorTracker {
 export const scalabilityPlan = {
   v1_1: {
     features: ['Multi-battle campaigns', 'User-generated content'],
-    architecture: ['WebSockets for real-time multiplayer', 'CDN for user assets'],
-    performance: ['Service workers', 'Background sync']
+    architecture: [
+      'WebSockets for real-time multiplayer',
+      'CDN for user assets',
+    ],
+    performance: ['Service workers', 'Background sync'],
   },
 
   v1_2: {
     features: ['PWA capabilities', 'Offline mode'],
-    architecture: ['IndexedDB caching', 'Background sync', 'Push notifications'],
-    performance: ['Advanced code splitting', 'Predictive loading']
+    architecture: [
+      'IndexedDB caching',
+      'Background sync',
+      'Push notifications',
+    ],
+    performance: ['Advanced code splitting', 'Predictive loading'],
   },
 
   v2_0: {
     features: ['Real-time multiplayer', 'Social features'],
     architecture: ['WebRTC for peer-to-peer', 'Real-time collaboration'],
-    performance: ['Edge computing', 'Global CDN optimization']
-  }
+    performance: ['Edge computing', 'Global CDN optimization'],
+  },
 };
 ```
 
@@ -1176,7 +1201,7 @@ graph TD
     A[MVP: Basic CSR Island] --> B[v1.1: Enhanced PWA]
     B --> C[v1.2: Offline Capabilities]
     C --> D[v2.0: Real-time Multiplayer]
-    
+
     E[Phaser 3 Engine] --> F[Potential Three.js Migration]
     G[REST APIs] --> H[GraphQL/tRPC Migration]
     I[Postgres] --> J[Multi-region Replication]
@@ -1190,7 +1215,7 @@ This architecture provides a robust foundation for the Typing RPG that balances 
 
 1. **CSR Island Pattern** isolates game complexity while maintaining SEO and performance for marketing pages
 2. **GameAdapter Abstraction** enables future engine flexibility and comprehensive testing
-3. **Phaser Lazy Loading** optimizes bundle size and loading performance  
+3. **Phaser Lazy Loading** optimizes bundle size and loading performance
 4. **Comprehensive Security** with RLS, input validation, and anti-cheat measures
 5. **Production Monitoring** ensures performance targets are met in production
 
@@ -1200,15 +1225,15 @@ The architecture supports the MVP requirements while providing clear paths for f
 
 ## Appendix A: Technology Stack Summary
 
-| Layer | Technology | Purpose | Bundle Impact |
-|-------|------------|---------|---------------|
-| **Framework** | Next.js 14 (App Router) | Full-stack React framework | ~45KB |
-| **Game Engine** | Phaser 3 | 2D game rendering & physics | ~380KB (lazy) |
-| **State Management** | Zustand | Client state management | ~8KB |
-| **Database** | Supabase (PostgreSQL) | Data persistence & auth | ~25KB |
-| **UI Framework** | shadcn/ui + Tailwind | Component library & styling | ~35KB |
-| **Testing** | Vitest + Playwright | Unit & E2E testing | Dev only |
-| **Deployment** | Vercel | Hosting & CDN | N/A |
+| Layer                | Technology              | Purpose                     | Bundle Impact |
+| -------------------- | ----------------------- | --------------------------- | ------------- |
+| **Framework**        | Next.js 14 (App Router) | Full-stack React framework  | ~45KB         |
+| **Game Engine**      | Phaser 3                | 2D game rendering & physics | ~380KB (lazy) |
+| **State Management** | Zustand                 | Client state management     | ~8KB          |
+| **Database**         | Supabase (PostgreSQL)   | Data persistence & auth     | ~25KB         |
+| **UI Framework**     | shadcn/ui + Tailwind    | Component library & styling | ~35KB         |
+| **Testing**          | Vitest + Playwright     | Unit & E2E testing          | Dev only      |
+| **Deployment**       | Vercel                  | Hosting & CDN               | N/A           |
 
 **Total Bundle Size**: ~90KB (non-game) + ~380KB (game island) = **470KB total**
 
@@ -1216,15 +1241,15 @@ The architecture supports the MVP requirements while providing clear paths for f
 
 ## Appendix B: Performance Benchmarks
 
-| Metric | Target | Current | Status |
-|--------|---------|---------|---------|
-| **TTFB** | < 200ms | ~150ms | ✅ |
-| **FCP** | < 1.5s | ~1.2s | ✅ |
-| **Game Load** | < 2s | ~1.8s | ✅ |
-| **FPS (avg)** | 60fps | ~58fps | ✅ |
-| **FPS (min)** | 30fps | ~35fps | ✅ |
-| **Memory** | < 200MB | ~180MB | ✅ |
+| Metric        | Target  | Current | Status |
+| ------------- | ------- | ------- | ------ |
+| **TTFB**      | < 200ms | ~150ms  | ✅     |
+| **FCP**       | < 1.5s  | ~1.2s   | ✅     |
+| **Game Load** | < 2s    | ~1.8s   | ✅     |
+| **FPS (avg)** | 60fps   | ~58fps  | ✅     |
+| **FPS (min)** | 30fps   | ~35fps  | ✅     |
+| **Memory**    | < 200MB | ~180MB  | ✅     |
 
 ---
 
-*This RFC will be updated as the architecture evolves through MVP development and beyond.*
+_This RFC will be updated as the architecture evolves through MVP development and beyond._

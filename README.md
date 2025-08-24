@@ -20,16 +20,19 @@ A typing RPG browser game designed for English learners, particularly for interm
 ### Database Setup
 
 1. **Install Supabase CLI:**
+
    ```bash
    brew install supabase/tap/supabase
    ```
 
 2. **Start local Supabase:**
+
    ```bash
    supabase start
    ```
 
 3. **Reset database with migrations and seed data:**
+
    ```bash
    supabase db reset
    ```
@@ -59,6 +62,7 @@ npm test             # Run tests (TBD)
 ## 🏗️ Architecture
 
 ### Tech Stack
+
 - **Frontend**: Next.js (App Router) + React + TypeScript + Tailwind CSS
 - **Game Engine**: Phaser 3 (loaded only in `/game` route as CSR island)
 - **Database**: Supabase (PostgreSQL + Auth + RLS)
@@ -78,12 +82,14 @@ npm test             # Run tests (TBD)
 ## 🎯 Game Features
 
 ### Core Mechanics
+
 - **Combat System**: Turn-based with real-time typing elements
 - **Input Modes**: Attack (right word) / Heal (left word) / Guard (enemy attacks)
 - **Damage Calculations**: Based on word level, length, accuracy, speed, and combo
 - **Guest Play**: Anonymous sessions with optional account creation
 
 ### Accessibility Features
+
 - WCAG AA compliance target
 - High contrast mode support
 - OpenDyslexic font option
@@ -93,17 +99,20 @@ npm test             # Run tests (TBD)
 ## 📊 Development Status
 
 ### ✅ Completed (Sprint 0)
+
 - [x] Project documentation and architecture
 - [x] **TYP-14**: Supabase DDL schema implementation with RLS policies
 - [x] Database migrations and seed data
 - [x] Local development environment setup
 
 ### 🚧 In Progress
+
 - [ ] Next.js application initialization
 - [ ] Phaser 3 game engine integration
 - [ ] UI component system setup
 
 ### 📋 Planned (MVP - Target: 2025-09-16)
+
 - [ ] Single battle gameplay (1v1)
 - [ ] Basic settings and word pack selection
 - [ ] Results screen and dashboard
@@ -113,7 +122,7 @@ npm test             # Run tests (TBD)
 
 ```
 docs/                      # Project documentation
-├── prd.md                # Product Requirements Document  
+├── prd.md                # Product Requirements Document
 ├── roadmap.md            # Development roadmap
 └── rfc/                  # Architecture decisions
 

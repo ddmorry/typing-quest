@@ -23,17 +23,20 @@ The database schema implements a typing RPG game for English learners, with tabl
 ## Table Details
 
 ### `profiles`
+
 - Links to Supabase auth.users table
 - Stores display_name and timestamps
 - RLS: Users can only access their own profile
 
 ### `word_packs`
+
 - Contains themed word collections (NGSL, TOEIC, Academic, etc.)
 - Defines level ranges (level_min to level_max)
 - Supports tags for categorization
 - Public read access (no RLS for read operations)
 
 ### `words`
+
 - Individual words with metadata
 - Links to word_packs via pack_id
 - Includes level (1-5), pronunciation, and meaning
@@ -41,6 +44,7 @@ The database schema implements a typing RPG game for English learners, with tabl
 - Unique constraint on (pack_id, text)
 
 ### `sessions`
+
 - Tracks individual game sessions
 - Supports both authenticated users and guests (user_id can be null)
 - Stores configuration in settings JSONB field
@@ -48,6 +52,7 @@ The database schema implements a typing RPG game for English learners, with tabl
 - RLS: Users can access their own sessions + guest sessions
 
 ### `attempts`
+
 - Detailed logging of each word typing attempt
 - Links to sessions and words
 - Auto-calculates WPM from character count and timing
@@ -57,21 +62,25 @@ The database schema implements a typing RPG game for English learners, with tabl
 ## Key Features
 
 ### Row Level Security (RLS)
+
 - **profiles**: Users can only access their own profile data
 - **sessions/attempts**: Users can access their own data + guest sessions (user_id = null)
 - **word_packs/words**: Public read access for educational content
 
 ### Guest Session Support
+
 - Anonymous users can play by creating sessions with user_id = null
 - Guest sessions are accessible to all users for demo purposes
 - Future feature: Guest-to-user session transfer upon registration
 
 ### Performance Optimization
+
 - Strategic indexes on foreign keys and commonly queried fields
 - Generated WPM column for efficient calculations
 - Composite indexes for pack + level queries
 
 ### Data Integrity
+
 - Check constraints for valid level ranges (1-5)
 - Foreign key relationships with cascade deletes
 - Unique constraints to prevent duplicate words per pack
@@ -85,22 +94,26 @@ The database schema implements a typing RPG game for English learners, with tabl
 ## Setup Instructions
 
 ### Prerequisites
+
 - Docker Desktop installed and running
 - Supabase CLI installed
 
 ### Local Development Setup
 
 1. **Install Supabase CLI** (if not already installed):
+
    ```bash
    brew install supabase/tap/supabase
    ```
 
 2. **Initialize Supabase** (already done):
+
    ```bash
    supabase init
    ```
 
 3. **Start local development environment**:
+
    ```bash
    supabase start
    ```
@@ -111,7 +124,9 @@ The database schema implements a typing RPG game for English learners, with tabl
    ```
 
 ### Database URLs
+
 When Supabase is running locally:
+
 - **API URL**: http://127.0.0.1:54321
 - **DB URL**: postgresql://postgres:postgres@127.0.0.1:54322/postgres
 - **Studio URL**: http://127.0.0.1:54323
@@ -121,8 +136,9 @@ When Supabase is running locally:
 The seed file includes:
 
 ### Word Packs
+
 1. **NGSL Basic 1000** (Levels 1-3) - 30 common English words
-2. **TOEIC Essentials** (Levels 2-4) - 20 business vocabulary words  
+2. **TOEIC Essentials** (Levels 2-4) - 20 business vocabulary words
 3. **Academic Word List** (Levels 3-5) - 25 academic vocabulary words
 
 ### Testing Verification
@@ -131,7 +147,7 @@ The following queries can be used to verify the setup:
 
 ```sql
 -- Check word pack distribution
-SELECT 
+SELECT
   wp.title,
   wp.level_min,
   wp.level_max,
@@ -150,8 +166,8 @@ ORDER BY wp.title;
 SELECT * FROM session_summary;
 
 -- Check RLS policies
-SELECT tablename, policyname, cmd, qual 
-FROM pg_policies 
+SELECT tablename, policyname, cmd, qual
+FROM pg_policies
 WHERE tablename IN ('profiles', 'sessions', 'attempts');
 ```
 
@@ -160,6 +176,7 @@ WHERE tablename IN ('profiles', 'sessions', 'attempts');
 The schema supports the game mechanics outlined in the PRD:
 
 ### Damage/Healing Calculations
+
 - `attempts.score` stores calculated damage/healing based on:
   - Word level and length
   - Typing accuracy and speed (WPM)
@@ -167,11 +184,13 @@ The schema supports the game mechanics outlined in the PRD:
   - Error penalties
 
 ### Session Statistics
+
 - Real-time stats stored in `sessions.stats` JSONB
 - Detailed attempt tracking for analysis
 - Aggregated views for dashboard display
 
 ### Word Selection Algorithm
+
 - Query by pack_id and level range
 - Random sampling for game variety
 - Support for different difficulty levels
@@ -226,16 +245,16 @@ The schema supports the game mechanics outlined in the PRD:
 
 ```sql
 -- Check table existence and row counts
-SELECT schemaname, tablename, 
-       (SELECT COUNT(*) FROM information_schema.columns 
+SELECT schemaname, tablename,
+       (SELECT COUNT(*) FROM information_schema.columns
         WHERE table_name = tablename) as column_count
-FROM pg_tables 
-WHERE schemaname = 'public' 
+FROM pg_tables
+WHERE schemaname = 'public'
 AND tablename IN ('profiles', 'word_packs', 'words', 'sessions', 'attempts');
 
 -- Verify RLS is enabled
 SELECT schemaname, tablename, rowsecurity
-FROM pg_tables 
+FROM pg_tables
 WHERE rowsecurity = true;
 ```
 

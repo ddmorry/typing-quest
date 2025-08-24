@@ -1,4 +1,4 @@
-import 'phaser'
+import 'phaser';
 
 declare global {
   namespace Phaser {
@@ -8,4 +8,4 @@ declare global {
   }
 }
 
-export {}
+export {};
