@@ -571,7 +571,7 @@ export class PhaserAdapter extends GameAdapter {
     }
 
     // Update GameScene with current input
-    if (this.gameScene) {
+    if (this.gameScene && typeof this.gameScene.updateCurrentInput === 'function') {
       this.gameScene.updateCurrentInput(this.inputBuffer);
     }
 
@@ -587,7 +587,7 @@ export class PhaserAdapter extends GameAdapter {
       this.inputBuffer = this.inputBuffer.slice(0, -1);
 
       // Update GameScene with current input
-      if (this.gameScene) {
+      if (this.gameScene && typeof this.gameScene.updateCurrentInput === 'function') {
         this.gameScene.updateCurrentInput(this.inputBuffer);
       }
 
@@ -750,7 +750,7 @@ export class PhaserAdapter extends GameAdapter {
     this.setState({ locked: wordType });
     
     // Update GameScene with lock visual feedback
-    if (this.gameScene) {
+    if (this.gameScene && typeof this.gameScene.updateGameState === 'function') {
       this.gameScene.updateGameState(this.state);
     }
 
@@ -761,7 +761,7 @@ export class PhaserAdapter extends GameAdapter {
     this.setState({ locked: null });
     
     // Update GameScene to remove lock visual feedback
-    if (this.gameScene) {
+    if (this.gameScene && typeof this.gameScene.updateGameState === 'function') {
       this.gameScene.updateGameState(this.state);
     }
     
@@ -783,7 +783,7 @@ export class PhaserAdapter extends GameAdapter {
     this.currentTypingSession = null;
     
     // Update GameScene
-    if (this.gameScene) {
+    if (this.gameScene && typeof this.gameScene.updateCurrentInput === 'function') {
       this.gameScene.updateCurrentInput('');
     }
     
@@ -845,7 +845,7 @@ export class PhaserAdapter extends GameAdapter {
       this.state = state;
 
       // Update GameScene with new state
-      if (this.gameScene) {
+      if (this.gameScene && typeof this.gameScene.updateGameState === 'function') {
         this.gameScene.updateGameState(state);
       }
     });
@@ -901,7 +901,7 @@ export class PhaserAdapter extends GameAdapter {
     this.phaserGame.scale.resize(newWidth, newHeight);
 
     // Notify GameScene about resize if needed
-    if (this.gameScene) {
+    if (this.gameScene && this.gameScene.events) {
       this.gameScene.events.emit('resize', {
         width: newWidth,
         height: newHeight,
