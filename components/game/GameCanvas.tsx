@@ -45,13 +45,13 @@ export default function GameCanvas({ className = '' }: GameCanvasProps) {
   }, [])
 
   return (
-    <div className={`flex items-center justify-center min-h-screen ${className}`}>
-      <div className="relative">
+    <div className={`flex items-center justify-center min-h-screen p-4 ${className}`}>
+      <div className="relative w-full max-w-4xl">
         <div
           id="game-canvas"
           ref={gameRef}
-          className="border border-gray-600 rounded-lg shadow-2xl"
-          style={{ minWidth: '800px', minHeight: '600px' }}
+          className="border border-gray-600 rounded-lg shadow-2xl w-full"
+          style={{ aspectRatio: '4/3', maxWidth: '800px', margin: '0 auto' }}
         />
         {!gameReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75 rounded-lg">

@@ -21,7 +21,15 @@ export const createPhaserConfig = (parent: string): Phaser.Types.Core.GameConfig
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: 800,
-    height: 600
+    height: 600,
+    min: {
+      width: 320,
+      height: 240
+    },
+    max: {
+      width: 1280,
+      height: 720
+    }
   },
   scene: {
     preload: preload,
