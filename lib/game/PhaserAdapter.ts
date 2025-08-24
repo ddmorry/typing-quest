@@ -44,6 +44,9 @@ export class PhaserAdapter extends GameAdapter {
   private inputBuffer = '';
   private keyboardEnabled = false;
   private resizeObserver: ResizeObserver | null = null;
+  private processingKeystroke = false; // Prevent duplicate processing
+  private lastProcessedKey = '';
+  private lastProcessedTime = 0;
 
   constructor() {
     super();
@@ -310,6 +313,18 @@ export class PhaserAdapter extends GameAdapter {
       return;
     }
 
+    // Prevent duplicate processing within 100ms
+    const currentTime = Date.now();
+    if (this.processingKeystroke || 
+        (this.lastProcessedKey === key && currentTime - this.lastProcessedTime < 100)) {
+      console.log(`[DEBUG] Ignoring duplicate keystroke: key="${key}", time diff=${currentTime - this.lastProcessedTime}ms`);
+      return;
+    }
+
+    this.processingKeystroke = true;
+    this.lastProcessedKey = key;
+    this.lastProcessedTime = currentTime;
+
     try {
       // Handle special keys
       if (key === 'Backspace') {
@@ -331,6 +346,8 @@ export class PhaserAdapter extends GameAdapter {
         error: error as Error,
         context: 'processKeystroke',
       });
+    } finally {
+      this.processingKeystroke = false;
     }
   }
 
@@ -517,10 +534,12 @@ export class PhaserAdapter extends GameAdapter {
 
   private handleCharacterInput(key: string): void {
     const newInput = this.inputBuffer + key;
+    console.log(`[DEBUG] handleCharacterInput: key="${key}", inputBuffer="${this.inputBuffer}", newInput="${newInput}"`);
 
     // If not locked, determine which word to lock based on first correct character
     if (!this.state.locked) {
       const lockResult = this.determineLockFromInput(newInput);
+      console.log(`[DEBUG] lockResult:`, lockResult);
       
       if (lockResult.shouldLock && lockResult.wordType) {
         this.lockWord(lockResult.wordType);
@@ -631,6 +650,8 @@ export class PhaserAdapter extends GameAdapter {
       guard: { id: '', text: '', level: 1 as WordLevel, length: 0 }, // Empty guard for compatibility
     };
 
+    // Update state directly and through state manager
+    this.setState({ currentWords: currentWords });
     this.stateManager.updateCurrentWords(currentWords);
 
     // Don't pre-create typing session - wait for user input to determine lock
@@ -645,6 +666,10 @@ export class PhaserAdapter extends GameAdapter {
     console.log('New word pair selected:', {
       heal: currentWords.heal?.text,
       attack: currentWords.attack?.text
+    });
+    console.log('[DEBUG] State after word selection:', {
+      healWord: this.state.currentWords.heal?.text,
+      attackWord: this.state.currentWords.attack?.text
     });
   }
 
@@ -713,6 +738,7 @@ export class PhaserAdapter extends GameAdapter {
   } {
     const healWord = this.state.currentWords.heal;
     const attackWord = this.state.currentWords.attack;
+    console.log(`[DEBUG] determineLockFromInput: input="${input}", healWord="${healWord?.text}", attackWord="${attackWord?.text}"`);
     
     if (!healWord || !attackWord) {
       return { shouldLock: false, isIncorrect: true };
