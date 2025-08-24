@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+
+// Global flag to prevent multiple game instances
+let globalGameInstance: any = null;
+let globalGameInitialized = false;
 import type { GameAdapter } from '@/lib/game/GameAdapter';
 import type { GameState, GameConfig, SessionSeed, Word } from '@/lib/game/types';
 
@@ -28,6 +32,7 @@ export default function GameCanvas({
 }: GameCanvasProps) {
   const gameRef = useRef<HTMLDivElement>(null);
   const adapterRef = useRef<GameAdapter | null>(null);
+  const initializationRef = useRef<boolean>(false);
   const [gameStatus, setGameStatus] = useState<GameStatus>({ status: 'LOADING' });
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [currentInput, setCurrentInput] = useState('');
@@ -37,10 +42,19 @@ export default function GameCanvas({
   // =============================================================================
 
   const initializeGameAdapter = useCallback(async () => {
+    // Global check to prevent any duplicate initialization
+    if (globalGameInitialized || globalGameInstance || initializationRef.current || adapterRef.current) {
+      console.log('GameAdapter already initialized globally, skipping...');
+      return;
+    }
+    
     if (!gameRef.current) {
       setGameStatus({ status: 'ERROR', error: new Error('Game container not available') });
       return;
     }
+
+    globalGameInitialized = true;
+    initializationRef.current = true;
 
     try {
       setGameStatus({ status: 'LOADING', message: 'Loading game engine...' });
@@ -53,6 +67,7 @@ export default function GameCanvas({
       // Create game adapter instance
       const adapter = new PhaserAdapter();
       adapterRef.current = adapter;
+      globalGameInstance = adapter;
 
       // Set up event listeners
       setupGameEventListeners(adapter);
@@ -94,13 +109,15 @@ export default function GameCanvas({
       console.log('GameAdapter initialized successfully');
     } catch (error) {
       console.error('Failed to initialize GameAdapter:', error);
+      globalGameInitialized = false; // Reset global flag on error
+      initializationRef.current = false; // Reset on error
       setGameStatus({ 
         status: 'ERROR', 
         error: error as Error,
         message: 'Failed to initialize game engine'
       });
     }
-  }, [difficulty, packId, sessionId]);
+  }, []);
 
   // =============================================================================
   // EVENT HANDLERS
@@ -232,17 +249,23 @@ export default function GameCanvas({
 
     return () => {
       // Cleanup
-      if (adapterRef.current) {
-        // Call cleanup function if it exists
-        if ((adapterRef.current as any)._cleanupListeners) {
-          (adapterRef.current as any)._cleanupListeners();
+      const cleanup = async () => {
+        if (adapterRef.current) {
+          // Call cleanup function if it exists
+          if ((adapterRef.current as any)._cleanupListeners) {
+            (adapterRef.current as any)._cleanupListeners();
+          }
+          
+          await adapterRef.current.destroy();
+          adapterRef.current = null;
         }
-        
-        adapterRef.current.destroy();
-        adapterRef.current = null;
-      }
+        globalGameInstance = null; // Reset global instance
+        globalGameInitialized = false; // Reset global flag
+        initializationRef.current = false; // Reset initialization flag
+      };
+      cleanup();
     };
-  }, [initializeGameAdapter]);
+  }, []); // Empty dependency array to run only once
 
   // =============================================================================
   // RENDER HELPERS

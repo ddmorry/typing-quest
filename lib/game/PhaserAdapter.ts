@@ -77,11 +77,23 @@ export class PhaserAdapter extends GameAdapter {
 
   async mount(element: HTMLElement, config: GameConfig): Promise<void> {
     try {
+      // Prevent duplicate mounting
+      if (this.phaserGame) {
+        console.log('PhaserAdapter already mounted, destroying previous instance...');
+        await this.destroy();
+      }
+
       this.validateConfig(config);
 
-      // Clean up any existing canvas elements in the target element
-      const existingCanvases = element.querySelectorAll('canvas');
-      existingCanvases.forEach(canvas => canvas.remove());
+      // More aggressive cleanup - remove ALL canvas elements in document
+      const allCanvases = document.querySelectorAll('canvas');
+      allCanvases.forEach(canvas => {
+        console.log('Removing existing canvas:', canvas);
+        canvas.remove();
+      });
+      
+      // Also clear the target element completely
+      element.innerHTML = '';
 
       this.config = config;
       this.element = element;
@@ -266,7 +278,7 @@ export class PhaserAdapter extends GameAdapter {
     }
   }
 
-  destroy(): void {
+  async destroy(): Promise<void> {
     this.running = false;
     this.disableInput();
 
@@ -280,7 +292,11 @@ export class PhaserAdapter extends GameAdapter {
     }
 
     if (this.phaserGame) {
-      this.phaserGame.destroy(true, false);
+      try {
+        this.phaserGame.destroy(true, false);
+      } catch (error) {
+        console.warn('Error destroying Phaser game:', error);
+      }
       this.phaserGame = null;
     }
 
