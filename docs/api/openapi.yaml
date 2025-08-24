@@ -1,0 +1,751 @@
+openapi: 3.0.3
+info:
+  title: Typing RPG Game API
+  version: 1.0.0
+  description: |
+    REST API for a typing RPG browser game designed for English learners.
+    The game combines RPG mechanics with typing practice, featuring turn-based combat
+    with real-time elements.
+    
+    ## Features
+    - Session-based gameplay with guest and authenticated user support
+    - Word typing attempts with accuracy and speed tracking
+    - Combat mechanics (attack, heal, guard) based on typing performance
+    - Supabase integration with Row Level Security (RLS)
+    
+    ## Authentication
+    - Bearer token authentication for logged-in users
+    - Guest sessions supported (no authentication required)
+    - All user data is protected by Supabase RLS policies
+  contact:
+    name: Typing RPG Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://typing-quest.vercel.app/api
+    description: Production server
+
+security:
+  - BearerAuth: []
+  - {} # Allow unauthenticated requests for guest sessions
+
+paths:
+  /session:
+    post:
+      summary: Start a new game session
+      description: |
+        Creates a new typing game session. Can be used by both authenticated users
+        and guests. For guest sessions, user_id will be null in the database.
+      operationId: createSession
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+        - {} # Allow guest access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+            examples:
+              authenticated_user:
+                summary: Authenticated user session
+                value:
+                  packId: "550e8400-e29b-41d4-a716-446655440000"
+                  difficulty: "NORMAL"
+                  settingsSnapshot:
+                    theme: "dark"
+                    fontSize: 16
+                    soundEnabled: true
+                    accessibilityMode: false
+              guest_user:
+                summary: Guest user session
+                value:
+                  packId: "550e8400-e29b-41d4-a716-446655440001"
+                  difficulty: "EASY"
+                  settingsSnapshot:
+                    theme: "light"
+                    fontSize: 14
+                    soundEnabled: false
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSessionResponse'
+              examples:
+                success:
+                  value:
+                    sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                    message: "Session created successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /attempt:
+    post:
+      summary: Record a word typing attempt
+      description: |
+        Records a single word typing attempt during a game session.
+        Calculates metrics like WPM, accuracy, and score based on performance.
+      operationId: recordAttempt
+      tags:
+        - Attempts
+      security:
+        - BearerAuth: []
+        - {} # Allow guest access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordAttemptRequest'
+            examples:
+              attack_attempt:
+                summary: Successful attack attempt
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  type: "ATTACK"
+                  wordId: "word-123e4567-e89b-12d3-a456-426614174000"
+                  targetText: "dragon"
+                  ms: 2500
+                  errors: 0
+                  accuracy: 1.0
+                  score: 45
+                  combo: 5
+              heal_attempt:
+                summary: Healing attempt with errors
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  type: "HEAL"
+                  wordId: "word-456e7890-e89b-12d3-a456-426614174000"
+                  targetText: "potion"
+                  ms: 3200
+                  errors: 2
+                  accuracy: 0.83
+                  score: 25
+                  combo: 0
+              guard_attempt:
+                summary: Guard attempt against enemy attack
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  type: "GUARD"
+                  wordId: "word-789e0123-e89b-12d3-a456-426614174000"
+                  targetText: "shield"
+                  ms: 1800
+                  errors: 0
+                  accuracy: 1.0
+                  score: 30
+                  combo: 6
+      responses:
+        '201':
+          description: Attempt recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordAttemptResponse'
+              examples:
+                success:
+                  value:
+                    attemptId: 12345
+                    wpm: 24.5
+                    message: "Attempt recorded successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /session/end:
+    post:
+      summary: End a game session
+      description: |
+        Finalizes a game session with results and statistics.
+        Updates the session record with duration, result, and aggregated stats.
+      operationId: endSession
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+        - {} # Allow guest access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndSessionRequest'
+            examples:
+              victory:
+                summary: Successful battle completion
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  result: "WIN"
+                  durationSec: 420
+                  stats:
+                    wpm: 28.5
+                    acc: 0.92
+                    comboMax: 15
+                    atkCount: 12
+                    healCount: 3
+                    guardRate: 0.8
+                    damage: 480
+                    damageTaken: 120
+              defeat:
+                summary: Battle lost
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  result: "LOSE"
+                  durationSec: 180
+                  stats:
+                    wpm: 18.2
+                    acc: 0.75
+                    comboMax: 5
+                    atkCount: 8
+                    healCount: 2
+                    guardRate: 0.4
+                    damage: 200
+                    damageTaken: 350
+              abort:
+                summary: Session aborted by user
+                value:
+                  sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                  result: "ABORT"
+                  durationSec: 90
+                  stats:
+                    wpm: 22.0
+                    acc: 0.88
+                    comboMax: 3
+                    atkCount: 4
+                    healCount: 1
+                    guardRate: 0.0
+                    damage: 120
+                    damageTaken: 50
+      responses:
+        '200':
+          description: Session ended successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndSessionResponse'
+              examples:
+                success:
+                  value:
+                    sessionId: "123e4567-e89b-12d3-a456-426614174000"
+                    finalStats:
+                      wpm: 28.5
+                      accuracy: 0.92
+                      totalScore: 600
+                      comboMax: 15
+                    message: "Session ended successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Supabase JWT token for authenticated users. Include in Authorization header
+        as "Bearer {token}". Guest sessions can omit this header.
+
+  schemas:
+    # Request Schemas
+    CreateSessionRequest:
+      type: object
+      required:
+        - packId
+        - difficulty
+      properties:
+        packId:
+          type: string
+          format: uuid
+          description: ID of the word pack to use for this session
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        settingsSnapshot:
+          type: object
+          description: |
+            Snapshot of user settings at session start.
+            Stored as JSONB for flexibility.
+          properties:
+            theme:
+              type: string
+              enum: ["light", "dark", "high-contrast"]
+              example: "dark"
+            fontSize:
+              type: integer
+              minimum: 12
+              maximum: 24
+              example: 16
+            soundEnabled:
+              type: boolean
+              example: true
+            accessibilityMode:
+              type: boolean
+              example: false
+            fontFamily:
+              type: string
+              enum: ["default", "open-dyslexic", "roboto-mono"]
+              example: "default"
+          additionalProperties: true
+
+    RecordAttemptRequest:
+      type: object
+      required:
+        - sessionId
+        - type
+        - wordId
+        - targetText
+        - ms
+        - accuracy
+        - score
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: ID of the session this attempt belongs to
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        type:
+          $ref: '#/components/schemas/AttemptType'
+        wordId:
+          type: string
+          format: uuid
+          description: ID of the word that was typed
+          example: "word-123e4567-e89b-12d3-a456-426614174000"
+        targetText:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: '^[a-zA-Z\s\-\']+$'
+          description: The exact text that was supposed to be typed
+          example: "dragon"
+        ms:
+          type: integer
+          minimum: 1
+          maximum: 60000
+          description: Time taken to type the word in milliseconds
+          example: 2500
+        errors:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of typing errors made
+          example: 0
+        accuracy:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          multipleOf: 0.0001
+          description: Typing accuracy as decimal (0.0 to 1.0)
+          example: 1.0
+        score:
+          type: integer
+          minimum: 0
+          description: Points scored for this attempt
+          example: 45
+        combo:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Current combo count at time of attempt
+          example: 5
+
+    EndSessionRequest:
+      type: object
+      required:
+        - sessionId
+        - result
+        - durationSec
+        - stats
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: ID of the session to end
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        result:
+          $ref: '#/components/schemas/SessionResult'
+        durationSec:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          description: Total session duration in seconds
+          example: 420
+        stats:
+          $ref: '#/components/schemas/SessionStats'
+
+    # Response Schemas
+    CreateSessionResponse:
+      type: object
+      required:
+        - sessionId
+        - message
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: ID of the newly created session
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        message:
+          type: string
+          example: "Session created successfully"
+
+    RecordAttemptResponse:
+      type: object
+      required:
+        - attemptId
+        - message
+      properties:
+        attemptId:
+          type: integer
+          format: int64
+          description: ID of the recorded attempt
+          example: 12345
+        wpm:
+          type: number
+          format: float
+          minimum: 0
+          description: Calculated words per minute for this attempt
+          example: 24.5
+        message:
+          type: string
+          example: "Attempt recorded successfully"
+
+    EndSessionResponse:
+      type: object
+      required:
+        - sessionId
+        - message
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        finalStats:
+          type: object
+          description: Final calculated statistics for the session
+          properties:
+            wpm:
+              type: number
+              format: float
+              minimum: 0
+              example: 28.5
+            accuracy:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              example: 0.92
+            totalScore:
+              type: integer
+              minimum: 0
+              example: 600
+            comboMax:
+              type: integer
+              minimum: 0
+              example: 15
+        message:
+          type: string
+          example: "Session ended successfully"
+
+    # Common Schemas
+    Difficulty:
+      type: string
+      enum: ["EASY", "NORMAL", "HARD"]
+      description: Game difficulty level affecting enemy behavior and word complexity
+      example: "NORMAL"
+
+    AttemptType:
+      type: string
+      enum: ["ATTACK", "HEAL", "GUARD"]
+      description: |
+        Type of action performed:
+        - ATTACK: Offensive action against enemy
+        - HEAL: Restore player HP
+        - GUARD: Defend against enemy attack
+      example: "ATTACK"
+
+    SessionResult:
+      type: string
+      enum: ["WIN", "LOSE", "ABORT"]
+      description: |
+        Final result of the session:
+        - WIN: Player defeated the enemy
+        - LOSE: Player was defeated
+        - ABORT: Session was terminated early
+      example: "WIN"
+
+    SessionStats:
+      type: object
+      required:
+        - wpm
+        - acc
+        - comboMax
+        - atkCount
+        - healCount
+        - guardRate
+        - damage
+        - damageTaken
+      description: Aggregated statistics for the entire session
+      properties:
+        wpm:
+          type: number
+          format: float
+          minimum: 0
+          description: Average words per minute
+          example: 28.5
+        acc:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Overall accuracy as decimal
+          example: 0.92
+        comboMax:
+          type: integer
+          minimum: 0
+          description: Maximum combo achieved
+          example: 15
+        atkCount:
+          type: integer
+          minimum: 0
+          description: Number of attack attempts
+          example: 12
+        healCount:
+          type: integer
+          minimum: 0
+          description: Number of heal attempts
+          example: 3
+        guardRate:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Guard success rate as decimal
+          example: 0.8
+        damage:
+          type: integer
+          minimum: 0
+          description: Total damage dealt to enemy
+          example: 480
+        damageTaken:
+          type: integer
+          minimum: 0
+          description: Total damage received from enemy
+          example: 120
+
+    # Error Schemas
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type identifier
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when error occurred
+
+    ValidationError:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            error:
+              example: "VALIDATION_ERROR"
+            details:
+              type: object
+              properties:
+                field:
+                  type: string
+                  description: Field that failed validation
+                constraint:
+                  type: string
+                  description: Validation constraint that was violated
+                received:
+                  description: Value that was received
+              example:
+                field: "difficulty"
+                constraint: "enum"
+                received: "INVALID"
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          examples:
+            invalid_difficulty:
+              summary: Invalid difficulty value
+              value:
+                error: "VALIDATION_ERROR"
+                message: "Invalid difficulty level"
+                details:
+                  field: "difficulty"
+                  constraint: "enum"
+                  received: "INVALID"
+                timestamp: "2025-08-24T10:30:00Z"
+            invalid_uuid:
+              summary: Invalid UUID format
+              value:
+                error: "VALIDATION_ERROR"
+                message: "Invalid UUID format"
+                details:
+                  field: "packId"
+                  constraint: "format"
+                  received: "invalid-uuid"
+                timestamp: "2025-08-24T10:30:00Z"
+            missing_field:
+              summary: Required field missing
+              value:
+                error: "VALIDATION_ERROR"
+                message: "Missing required field"
+                details:
+                  field: "sessionId"
+                  constraint: "required"
+                timestamp: "2025-08-24T10:30:00Z"
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid_token:
+              summary: Invalid JWT token
+              value:
+                error: "UNAUTHORIZED"
+                message: "Invalid or expired authentication token"
+                timestamp: "2025-08-24T10:30:00Z"
+            missing_token:
+              summary: Missing authentication for protected resource
+              value:
+                error: "UNAUTHORIZED"
+                message: "Authentication required for this operation"
+                timestamp: "2025-08-24T10:30:00Z"
+
+    Forbidden:
+      description: Forbidden - access denied by RLS policies
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rls_violation:
+              summary: Row Level Security policy violation
+              value:
+                error: "FORBIDDEN"
+                message: "Access denied: insufficient permissions"
+                details:
+                  reason: "RLS_POLICY_VIOLATION"
+                  resource: "session"
+                timestamp: "2025-08-24T10:30:00Z"
+            session_ownership:
+              summary: Attempt to access another user's session
+              value:
+                error: "FORBIDDEN"
+                message: "Cannot access session belonging to another user"
+                timestamp: "2025-08-24T10:30:00Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            session_not_found:
+              summary: Session not found
+              value:
+                error: "NOT_FOUND"
+                message: "Session not found"
+                details:
+                  resource: "session"
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                timestamp: "2025-08-24T10:30:00Z"
+            word_pack_not_found:
+              summary: Word pack not found
+              value:
+                error: "NOT_FOUND"
+                message: "Word pack not found or inactive"
+                details:
+                  resource: "word_pack"
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                timestamp: "2025-08-24T10:30:00Z"
+            word_not_found:
+              summary: Word not found
+              value:
+                error: "NOT_FOUND"
+                message: "Word not found in specified pack"
+                details:
+                  resource: "word"
+                  id: "word-123e4567-e89b-12d3-a456-426614174000"
+                timestamp: "2025-08-24T10:30:00Z"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            database_error:
+              summary: Database connection error
+              value:
+                error: "INTERNAL_SERVER_ERROR"
+                message: "An unexpected error occurred"
+                details:
+                  code: "DATABASE_ERROR"
+                timestamp: "2025-08-24T10:30:00Z"
+            general_error:
+              summary: General server error
+              value:
+                error: "INTERNAL_SERVER_ERROR"
+                message: "An unexpected error occurred. Please try again later."
+                timestamp: "2025-08-24T10:30:00Z"
+
+tags:
+  - name: Sessions
+    description: Game session management endpoints
+  - name: Attempts
+    description: Word typing attempt recording endpoints
