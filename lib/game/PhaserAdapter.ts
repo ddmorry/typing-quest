@@ -8,6 +8,7 @@ import {
   GuardResult,
   PerformanceMetrics,
   ActionType,
+  WordLevel,
 } from './types';
 import { GameStateManager } from './state/GameStateManager';
 import { EventBus } from './events/EventBus';
@@ -141,14 +142,14 @@ export class PhaserAdapter extends GameAdapter {
         // Use a simple inline scene for testing
         scene: {
           key: 'GameScene',
-          preload: function() {
+          preload: function(this: any) {
             console.log('Phaser scene preload');
           },
-          create: function() {
+          create: function(this: any) {
             console.log('Phaser scene created successfully');
             
             // Store reference to adapter
-            (this.game as any).adapter = (this.game as any).adapter;
+            this.game.adapter = this.game.adapter;
             
             // Create basic UI
             this.add.text(400, 50, 'Typing Quest', {
@@ -166,7 +167,7 @@ export class PhaserAdapter extends GameAdapter {
               color: '#cccccc',
             }).setOrigin(0.5);
           },
-          update: function() {
+          update: function(this: any) {
             // Basic update loop
           }
         },
@@ -515,20 +516,63 @@ export class PhaserAdapter extends GameAdapter {
   }
 
   private handleCharacterInput(key: string): void {
-    this.inputBuffer += key;
+    const newInput = this.inputBuffer + key;
+
+    // If not locked, determine which word to lock based on first correct character
+    if (!this.state.locked) {
+      const lockResult = this.determineLockFromInput(newInput);
+      
+      if (lockResult.shouldLock && lockResult.wordType) {
+        this.lockWord(lockResult.wordType);
+        this.inputBuffer = newInput;
+        
+        // Create typing session for locked word
+        const lockedWord = this.state.currentWords[lockResult.wordType];
+        if (lockedWord) {
+          this.currentTypingSession = this.inputValidator.createTypingSession(
+            lockedWord,
+            lockResult.wordType.toUpperCase() as ActionType
+          );
+        }
+        
+        // Emit lock event
+        this.emit('word-locked', { 
+          wordType: lockResult.wordType, 
+          word: lockedWord,
+          input: newInput 
+        });
+      } else if (lockResult.isIncorrect) {
+        // Invalid input - reset combo but don't change input buffer
+        this.resetComboAndUnlock('Invalid character input');
+        return;
+      } else {
+        // Input is still ambiguous or empty, just add to buffer
+        this.inputBuffer = newInput;
+      }
+    } else {
+      // Already locked - validate against locked word only
+      const lockedWord = this.state.currentWords[this.state.locked];
+      if (lockedWord && this.isInputValidForWord(newInput, lockedWord)) {
+        this.inputBuffer = newInput;
+        
+        // Update typing session
+        if (this.currentTypingSession) {
+          this.currentTypingSession = this.inputValidator.updateTypingSession(
+            this.currentTypingSession,
+            key,
+            this.inputBuffer
+          );
+        }
+      } else {
+        // Wrong character for locked word - reset everything
+        this.resetComboAndUnlock('Incorrect input for locked word');
+        return;
+      }
+    }
 
     // Update GameScene with current input
     if (this.gameScene) {
       this.gameScene.updateCurrentInput(this.inputBuffer);
-    }
-
-    // Update typing session
-    if (this.currentTypingSession) {
-      this.currentTypingSession = this.inputValidator.updateTypingSession(
-        this.currentTypingSession,
-        key,
-        this.inputBuffer
-      );
     }
 
     // Check for word completion
@@ -580,20 +624,28 @@ export class PhaserAdapter extends GameAdapter {
       avoidRecentWords: true,
     });
 
-    this.stateManager.updateCurrentWords({
+    // For two-choice system, ensure we have both heal and attack words
+    const currentWords = {
       attack: selection.attack,
       heal: selection.heal,
-      guard: selection.guard,
+      guard: { id: '', text: '', level: 1 as WordLevel, length: 0 }, // Empty guard for compatibility
+    };
+
+    this.stateManager.updateCurrentWords(currentWords);
+
+    // Don't pre-create typing session - wait for user input to determine lock
+    this.currentTypingSession = null;
+    
+    // Emit event that new words are available
+    this.emit('word-started', { 
+      healWord: currentWords.heal, 
+      attackWord: currentWords.attack 
     });
 
-    // Start typing session for first available word
-    const firstWord = selection.attack || selection.heal;
-    if (firstWord) {
-      this.currentTypingSession = this.inputValidator.createTypingSession(
-        firstWord,
-        selection.attack ? 'ATTACK' : 'HEAL'
-      );
-    }
+    console.log('New word pair selected:', {
+      heal: currentWords.heal?.text,
+      attack: currentWords.attack?.text
+    });
   }
 
   private getCurrentTargetWord(): import('./types').Word | null {
@@ -634,9 +686,10 @@ export class PhaserAdapter extends GameAdapter {
         break;
     }
 
-    // Clear input and select new words
+    // Clear input, unlock words, and select new words
     this.inputBuffer = '';
     this.currentTypingSession = null;
+    this.unlockWords();
     this.selectNewWords();
 
     this.emit('word-completed', { completedWord, result });
@@ -647,6 +700,101 @@ export class PhaserAdapter extends GameAdapter {
       return this.state.locked as ActionType;
     }
     return 'ATTACK'; // Default
+  }
+
+  // =============================================================================
+  // LOCK MECHANISM METHODS
+  // =============================================================================
+
+  private determineLockFromInput(input: string): {
+    shouldLock: boolean;
+    wordType?: 'heal' | 'attack';
+    isIncorrect: boolean;
+  } {
+    const healWord = this.state.currentWords.heal;
+    const attackWord = this.state.currentWords.attack;
+    
+    if (!healWord || !attackWord) {
+      return { shouldLock: false, isIncorrect: true };
+    }
+
+    const healMatches = this.isInputValidForWord(input, healWord);
+    const attackMatches = this.isInputValidForWord(input, attackWord);
+
+    // If input matches exactly one word, lock to that word
+    if (healMatches && !attackMatches) {
+      return { shouldLock: true, wordType: 'heal', isIncorrect: false };
+    }
+    
+    if (attackMatches && !healMatches) {
+      return { shouldLock: true, wordType: 'attack', isIncorrect: false };
+    }
+
+    // If input matches both words, wait for more input (ambiguous)
+    if (healMatches && attackMatches) {
+      return { shouldLock: false, isIncorrect: false };
+    }
+
+    // If input matches neither word, it's incorrect
+    return { shouldLock: false, isIncorrect: true };
+  }
+
+  private isInputValidForWord(input: string, word: import('./types').Word): boolean {
+    if (!word || !word.text) return false;
+    
+    // Case-insensitive matching
+    return word.text.toLowerCase().startsWith(input.toLowerCase());
+  }
+
+  private lockWord(wordType: 'heal' | 'attack'): void {
+    this.setState({ locked: wordType });
+    
+    // Update GameScene with lock visual feedback
+    if (this.gameScene) {
+      this.gameScene.updateGameState(this.state);
+    }
+
+    console.log(`Word locked to: ${wordType}`);
+  }
+
+  private unlockWords(): void {
+    this.setState({ locked: null });
+    
+    // Update GameScene to remove lock visual feedback
+    if (this.gameScene) {
+      this.gameScene.updateGameState(this.state);
+    }
+    
+    // Emit unlock event
+    this.emit('word-unlocked', { reason: 'manual_unlock' });
+    
+    console.log('Words unlocked');
+  }
+
+  private resetComboAndUnlock(reason: string): void {
+    // Reset combo to 0
+    this.updateCombo(0);
+    
+    // Unlock words
+    this.unlockWords();
+    
+    // Clear input
+    this.inputBuffer = '';
+    this.currentTypingSession = null;
+    
+    // Update GameScene
+    if (this.gameScene) {
+      this.gameScene.updateCurrentInput('');
+    }
+    
+    // Emit failure event
+    this.emit('word-failed', { 
+      reason, 
+      input: this.inputBuffer,
+      combo: this.state.combo 
+    });
+    
+    console.log(`Reset combo and unlock - Reason: ${reason}`);
   }
 
   // =============================================================================

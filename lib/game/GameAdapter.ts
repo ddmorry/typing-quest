@@ -175,6 +175,8 @@ export abstract class GameAdapter {
       'word-started',
       'word-completed', 
       'word-failed',
+      'word-locked',
+      'word-unlocked',
       'action-executed',
       'damage-dealt',
       'healing-applied',
