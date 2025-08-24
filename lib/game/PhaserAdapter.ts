@@ -21,6 +21,8 @@ import {
   createHealResult,
   createGuardResult,
 } from './utils/combatCalculations';
+// GameScene will be imported dynamically with Phaser
+import { PerformanceMonitor } from './utils/performanceMonitor';
 
 /**
  * Phaser-specific implementation of GameAdapter
@@ -29,29 +31,22 @@ import {
 
 export class PhaserAdapter extends GameAdapter {
   private phaserGame: Phaser.Game | null = null;
-  private gameScene: Phaser.Scene | null = null;
+  private gameScene: any = null; // Will be typed as GameScene after dynamic import
   private stateManager: GameStateManager;
   private eventBus: EventBus;
   private wordManager: WordManager | null = null;
   private inputValidator: InputValidator;
   private currentTypingSession: TypingSession | null = null;
-
-  // Performance tracking
-  private performanceMetrics: PerformanceMetrics = {
-    fps: 60,
-    averageFPS: 60,
-    memoryUsage: 0,
-    renderTime: 0,
-    updateTime: 0,
-  };
+  private performanceMonitor: PerformanceMonitor;
 
   // Input handling
   private inputBuffer = '';
   private keyboardEnabled = false;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor() {
     super();
-    
+
     // Initialize subsystems
     this.eventBus = new EventBus({
       enableLogging: process.env.NODE_ENV === 'development',
@@ -71,6 +66,7 @@ export class PhaserAdapter extends GameAdapter {
     );
 
     this.inputValidator = new InputValidator();
+    this.performanceMonitor = new PerformanceMonitor();
 
     this.setupEventListeners();
   }
@@ -82,108 +78,132 @@ export class PhaserAdapter extends GameAdapter {
   async mount(element: HTMLElement, config: GameConfig): Promise<void> {
     try {
       this.validateConfig(config);
-      
+
       // Clean up any existing canvas elements in the target element
       const existingCanvases = element.querySelectorAll('canvas');
       existingCanvases.forEach(canvas => canvas.remove());
-      
+
       this.config = config;
       this.element = element;
 
       // Dynamic import of Phaser to ensure it's only loaded when needed
       const Phaser = await import('phaser');
 
-      // Create Phaser game configuration
-      const phaserConfig: Phaser.Types.Core.GameConfig = {
-        type: Phaser.AUTO,
+      // Create optimized Phaser configuration for 60fps and responsive design
+      const phaserConfig = {
+        type: Phaser.AUTO, // Automatically choose WebGL or Canvas
         width: config.width,
         height: config.height,
         parent: element,
         backgroundColor: '#2c3e50',
+
+        // Physics configuration
         physics: {
           default: 'arcade',
           arcade: {
             gravity: { x: 0, y: 0 },
-            debug: false,
+            debug: process.env.NODE_ENV === 'development',
           },
         },
+
+        // Optimized FPS configuration
         fps: {
           target: 60,
           forceSetTimeOut: true,
+          deltaHistory: 10, // Keep delta history for smoother performance
         },
+
+        // Responsive scaling configuration
         scale: {
-          mode: Phaser.Scale.NONE,
-          autoCenter: Phaser.Scale.NO_CENTER,
+          mode: Phaser.Scale.FIT,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
           width: config.width,
           height: config.height,
+          min: {
+            width: 320,
+            height: 240,
+          },
+          max: {
+            width: 1920,
+            height: 1080,
+          },
         },
+
+        // Render configuration for better performance
+        render: {
+          antialias: true,
+          pixelArt: false,
+          roundPixels: true,
+          transparent: false,
+          powerPreference: 'high-performance', // Use dedicated GPU if available
+        },
+
+        // Use a simple inline scene for testing
         scene: {
           key: 'GameScene',
-          preload: function(this: Phaser.Scene) {
-            // Basic loading
-            this.load.on('complete', () => {
-              console.log('Phaser assets loaded');
-            });
+          preload: function() {
+            console.log('Phaser scene preload');
           },
-          create: function(this: Phaser.Scene) {
-            const adapter = (this.game as any).adapter as PhaserAdapter;
-            if (adapter) {
-              adapter.gameScene = this;
-            }
-
-            // Create basic UI elements
+          create: function() {
+            console.log('Phaser scene created successfully');
+            
+            // Store reference to adapter
+            (this.game as any).adapter = (this.game as any).adapter;
+            
+            // Create basic UI
             this.add.text(400, 50, 'Typing Quest', {
               fontSize: '32px',
               color: '#ffffff',
             }).setOrigin(0.5);
 
-            // HP bars (placeholder)
-            const playerHPBar = this.add.graphics();
-            const enemyHPBar = this.add.graphics();
-            
-            (this.game as any).playerHPBar = playerHPBar;
-            (this.game as any).enemyHPBar = enemyHPBar;
+            this.add.text(400, 300, 'Game Engine Ready!', {
+              fontSize: '24px',
+              color: '#4ecdc4',
+            }).setOrigin(0.5);
 
-            // Word display areas
-            const wordDisplays = {
-              attack: this.add.text(200, 300, '', { fontSize: '24px', color: '#ff6b6b' }),
-              heal: this.add.text(600, 300, '', { fontSize: '24px', color: '#4ecdc4' }),
-              guard: this.add.text(400, 400, '', { fontSize: '24px', color: '#ffe66d' }),
-            };
-
-            (this.game as any).wordDisplays = wordDisplays;
-
-            console.log('Phaser scene created');
+            this.add.text(400, 400, 'Press any key to test input...', {
+              fontSize: '16px',
+              color: '#cccccc',
+            }).setOrigin(0.5);
           },
-          update: function(this: Phaser.Scene) {
-            const adapter = (this.game as any).adapter as PhaserAdapter;
-            
-            if (!adapter || !adapter.isRunning()) return;
+          update: function() {
+            // Basic update loop
+          }
+        },
 
-            // Update HP bars
-            adapter.updateHPBars(this);
-            
-            // Update word displays
-            adapter.updateWordDisplays(this);
-            
-            // Check for game over
-            adapter.checkGameOver();
-          },
+        // Audio configuration
+        audio: {
+          disableWebAudio: false,
+        },
+
+        // Input configuration
+        input: {
+          keyboard: true,
+          mouse: true,
+          touch: true,
+          gamepad: false,
         },
       };
 
       // Create Phaser game instance
       this.phaserGame = new Phaser.Game(phaserConfig);
-      
+
       // Attach this adapter to the game for scene access
-      (this.phaserGame as any).adapter = this;
-      
+      (this.phaserGame as Phaser.Game & { adapter: PhaserAdapter }).adapter =
+        this;
+
+      // Set up resize handling
+      this.setupResizeHandling();
+
       // Wait for scene to be ready
       await this.waitForSceneReady();
 
+      // Initialize performance monitoring
+      this.startPerformanceMonitoring();
+
       this.mounted = true;
       this.setState({ status: 'READY' });
-      
+
       console.log('PhaserAdapter mounted successfully');
     } catch (error) {
       console.error('Failed to mount PhaserAdapter:', error);
@@ -228,7 +248,7 @@ export class PhaserAdapter extends GameAdapter {
     if (this.state.status === 'PLAYING') {
       this.setState({ status: 'PAUSED' });
       this.disableInput();
-      
+
       if (this.gameScene) {
         this.gameScene.scene.pause();
       }
@@ -239,7 +259,7 @@ export class PhaserAdapter extends GameAdapter {
     if (this.state.status === 'PAUSED') {
       this.setState({ status: 'PLAYING' });
       this.enableInput();
-      
+
       if (this.gameScene) {
         this.gameScene.scene.resume();
       }
@@ -249,6 +269,15 @@ export class PhaserAdapter extends GameAdapter {
   destroy(): void {
     this.running = false;
     this.disableInput();
+
+    // Stop performance monitoring
+    this.stopPerformanceMonitoring();
+
+    // Clean up resize observer
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
 
     if (this.phaserGame) {
       this.phaserGame.destroy(true, false);
@@ -265,6 +294,7 @@ export class PhaserAdapter extends GameAdapter {
     this.eventBus?.destroy();
     this.inputValidator?.reset();
     this.wordManager?.reset();
+    this.gameScene = null;
 
     this.cleanup();
     console.log('PhaserAdapter destroyed');
@@ -280,22 +310,6 @@ export class PhaserAdapter extends GameAdapter {
     }
 
     try {
-      // Validate keystroke
-      const validation = this.inputValidator.validateKeystroke(
-        key,
-        this.inputBuffer,
-        this.getCurrentTargetWord()?.text || '',
-        Date.now()
-      );
-
-      if (!validation.valid) {
-        this.emit('error', { 
-          error: new Error(`Invalid keystroke: ${validation.errors.join(', ')}`), 
-          context: 'processKeystroke' 
-        });
-        return;
-      }
-
       // Handle special keys
       if (key === 'Backspace') {
         this.handleBackspace();
@@ -307,12 +321,15 @@ export class PhaserAdapter extends GameAdapter {
         return;
       }
 
-      // Handle regular character input
-      if (this.isValidKeystroke(key)) {
+      // Handle regular character input (only English letters and space)
+      if (/^[a-zA-Z ]$/.test(key)) {
         this.handleCharacterInput(key);
       }
     } catch (error) {
-      this.emit('error', { error: error as Error, context: 'processKeystroke' });
+      this.emit('error', {
+        error: error as Error,
+        context: 'processKeystroke',
+      });
     }
   }
 
@@ -342,10 +359,10 @@ export class PhaserAdapter extends GameAdapter {
 
       // Emit events
       this.emit('action-executed', { result });
-      this.emit('damage-dealt', { 
-        damage: result.damageDealt, 
-        critical: result.critical, 
-        enemyHp: result.enemyHpAfter 
+      this.emit('damage-dealt', {
+        damage: result.damageDealt,
+        critical: result.critical,
+        enemyHp: result.enemyHpAfter,
       });
 
       return result;
@@ -382,10 +399,10 @@ export class PhaserAdapter extends GameAdapter {
 
       // Emit events
       this.emit('action-executed', { result });
-      this.emit('healing-applied', { 
-        healing: result.healingDone, 
-        critical: result.critical, 
-        playerHp: result.playerHpAfter 
+      this.emit('healing-applied', {
+        healing: result.healingDone,
+        critical: result.critical,
+        playerHp: result.playerHpAfter,
       });
 
       return result;
@@ -406,7 +423,11 @@ export class PhaserAdapter extends GameAdapter {
         totalTime: this.config!.durationSec,
       };
 
-      const calculation = calculateGuardEffectiveness(wordData, incomingDamage, config);
+      const calculation = calculateGuardEffectiveness(
+        wordData,
+        incomingDamage,
+        config
+      );
       const result = createGuardResult(
         wordData,
         calculation,
@@ -422,15 +443,18 @@ export class PhaserAdapter extends GameAdapter {
 
       // Apply remaining damage if guard wasn't perfect
       if (result.damageReceived > 0) {
-        const newPlayerHp = Math.max(0, this.state.hp.player - result.damageReceived);
+        const newPlayerHp = Math.max(
+          0,
+          this.state.hp.player - result.damageReceived
+        );
         await this.stateManager.updateHP({ player: newPlayerHp });
       }
 
       // Emit events
       this.emit('action-executed', { result });
-      this.emit('guard-executed', { 
-        blocked: result.blocked, 
-        damageBlocked: result.damageBlocked 
+      this.emit('guard-executed', {
+        blocked: result.blocked,
+        damageBlocked: result.damageBlocked,
       });
 
       return result;
@@ -445,19 +469,7 @@ export class PhaserAdapter extends GameAdapter {
   // =============================================================================
 
   getPerformanceMetrics(): PerformanceMetrics {
-    if (this.phaserGame) {
-      const game = this.phaserGame;
-      
-      this.performanceMetrics = {
-        fps: Math.round(game.loop.actualFps),
-        averageFPS: Math.round(game.loop.actualFps), // TODO: Calculate actual average
-        memoryUsage: (performance as any).memory?.usedJSHeapSize || 0,
-        renderTime: game.loop.delta,
-        updateTime: game.loop.delta,
-      };
-    }
-
-    return { ...this.performanceMetrics };
+    return this.performanceMonitor.getMetrics();
   }
 
   // =============================================================================
@@ -472,12 +484,23 @@ export class PhaserAdapter extends GameAdapter {
     if (!this.gameScene) return;
 
     this.keyboardEnabled = true;
-    
-    // Set up keyboard input handling
+
+    // Set up optimized keyboard input handling
     const keyboard = this.gameScene.input.keyboard;
-    
+
+    // Clear any existing listeners first
+    keyboard?.removeAllListeners('keydown');
+
     keyboard?.on('keydown', (event: KeyboardEvent) => {
-      if (this.keyboardEnabled) {
+      if (!this.keyboardEnabled) return;
+
+      // Prevent default for game keys to avoid browser shortcuts
+      if (this.shouldPreventDefault(event.key)) {
+        event.preventDefault();
+      }
+
+      // Only process valid keystrokes
+      if (this.isValidGameKeystroke(event.key)) {
         this.processKeystroke(event.key);
       }
     });
@@ -485,7 +508,7 @@ export class PhaserAdapter extends GameAdapter {
 
   private disableInput(): void {
     this.keyboardEnabled = false;
-    
+
     if (this.gameScene) {
       this.gameScene.input.keyboard?.removeAllListeners();
     }
@@ -493,7 +516,12 @@ export class PhaserAdapter extends GameAdapter {
 
   private handleCharacterInput(key: string): void {
     this.inputBuffer += key;
-    
+
+    // Update GameScene with current input
+    if (this.gameScene) {
+      this.gameScene.updateCurrentInput(this.inputBuffer);
+    }
+
     // Update typing session
     if (this.currentTypingSession) {
       this.currentTypingSession = this.inputValidator.updateTypingSession(
@@ -513,7 +541,12 @@ export class PhaserAdapter extends GameAdapter {
   private handleBackspace(): void {
     if (this.inputBuffer.length > 0) {
       this.inputBuffer = this.inputBuffer.slice(0, -1);
-      
+
+      // Update GameScene with current input
+      if (this.gameScene) {
+        this.gameScene.updateCurrentInput(this.inputBuffer);
+      }
+
       if (this.currentTypingSession) {
         this.currentTypingSession = this.inputValidator.updateTypingSession(
           this.currentTypingSession,
@@ -567,7 +600,7 @@ export class PhaserAdapter extends GameAdapter {
     if (this.state.locked) {
       return this.state.currentWords[this.state.locked] || null;
     }
-    
+
     // Default to attack word if nothing is locked
     return this.state.currentWords.attack || null;
   }
@@ -575,9 +608,14 @@ export class PhaserAdapter extends GameAdapter {
   private async completeCurrentWord(): Promise<void> {
     if (!this.currentTypingSession) return;
 
-    const completedSession = this.inputValidator.completeTypingSession(this.currentTypingSession);
+    const completedSession = this.inputValidator.completeTypingSession(
+      this.currentTypingSession
+    );
     const metrics = this.inputValidator.validateCompletedWord(completedSession);
-    const completedWord = this.inputValidator.createCompletedWord(completedSession, metrics);
+    const completedWord = this.inputValidator.createCompletedWord(
+      completedSession,
+      metrics
+    );
 
     // Determine action type
     const actionType = this.getActionTypeForCurrentWord();
@@ -615,47 +653,22 @@ export class PhaserAdapter extends GameAdapter {
   // UI UPDATES
   // =============================================================================
 
-  private updateHPBars(scene: Phaser.Scene): void {
-    const playerHPBar = (scene.game as any).playerHPBar as Phaser.GameObjects.Graphics;
-    const enemyHPBar = (scene.game as any).enemyHPBar as Phaser.GameObjects.Graphics;
-
-    if (playerHPBar && enemyHPBar) {
-      // Clear previous bars
-      playerHPBar.clear();
-      enemyHPBar.clear();
-
-      // Draw player HP bar
-      const playerHPPercent = this.state.hp.player / this.state.hp.playerMax;
-      playerHPBar.fillStyle(0x4ecdc4);
-      playerHPBar.fillRect(50, 100, 200 * playerHPPercent, 20);
-
-      // Draw enemy HP bar
-      const enemyHPPercent = this.state.hp.enemy / this.state.hp.enemyMax;
-      enemyHPBar.fillStyle(0xff6b6b);
-      enemyHPBar.fillRect(550, 100, 200 * enemyHPPercent, 20);
-    }
-  }
-
-  private updateWordDisplays(scene: Phaser.Scene): void {
-    const wordDisplays = (scene.game as any).wordDisplays;
-
-    if (wordDisplays) {
-      wordDisplays.attack.setText(this.state.currentWords.attack.text || '');
-      wordDisplays.heal.setText(this.state.currentWords.heal.text || '');
-      wordDisplays.guard?.setText(this.state.currentWords.guard?.text || '');
-    }
-  }
-
   // =============================================================================
   // UTILITY METHODS
   // =============================================================================
 
   private async waitForSceneReady(): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const checkScene = () => {
         if (this.phaserGame && this.phaserGame.scene.isActive('GameScene')) {
+          // Get reference to the GameScene instance
+          this.gameScene = this.phaserGame.scene.getScene('GameScene');
+
           // Store reference to adapter in game object for scene access
-          (this.phaserGame as any).adapter = this;
+          (
+            this.phaserGame as Phaser.Game & { adapter: PhaserAdapter }
+          ).adapter = this;
+
           resolve();
         } else {
           setTimeout(checkScene, 100);
@@ -680,8 +693,113 @@ export class PhaserAdapter extends GameAdapter {
 
   private setupEventListeners(): void {
     // Listen to state changes from state manager
-    this.stateManager.subscribe((state) => {
+    this.stateManager.subscribe(state => {
       this.state = state;
+
+      // Update GameScene with new state
+      if (this.gameScene) {
+        this.gameScene.updateGameState(state);
+      }
     });
+  }
+
+  // =============================================================================
+  // RESIZE HANDLING
+  // =============================================================================
+
+  private setupResizeHandling(): void {
+    if (!this.element || !this.phaserGame) return;
+
+    // Set up ResizeObserver for responsive behavior
+    this.resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        this.handleResize(width, height);
+      }
+    });
+
+    this.resizeObserver.observe(this.element);
+
+    // Also listen to window resize as fallback
+    window.addEventListener('resize', () => {
+      if (this.element) {
+        const rect = this.element.getBoundingClientRect();
+        this.handleResize(rect.width, rect.height);
+      }
+    });
+  }
+
+  private handleResize(containerWidth: number, containerHeight: number): void {
+    if (!this.phaserGame || !this.config) return;
+
+    // Calculate the best fit while maintaining aspect ratio
+    const gameAspectRatio = this.config.width / this.config.height;
+    const containerAspectRatio = containerWidth / containerHeight;
+
+    let newWidth: number;
+    let newHeight: number;
+
+    if (containerAspectRatio > gameAspectRatio) {
+      // Container is wider than game aspect ratio
+      newHeight = containerHeight;
+      newWidth = newHeight * gameAspectRatio;
+    } else {
+      // Container is taller than game aspect ratio
+      newWidth = containerWidth;
+      newHeight = newWidth / gameAspectRatio;
+    }
+
+    // Update Phaser game size
+    this.phaserGame.scale.resize(newWidth, newHeight);
+
+    // Notify GameScene about resize if needed
+    if (this.gameScene) {
+      this.gameScene.events.emit('resize', {
+        width: newWidth,
+        height: newHeight,
+      });
+    }
+  }
+
+  // =============================================================================
+  // PERFORMANCE MONITORING
+  // =============================================================================
+
+  private startPerformanceMonitoring(): void {
+    if (!this.phaserGame) return;
+
+    // Update performance metrics each frame
+    this.phaserGame.events.on('step', () => {
+      this.performanceMonitor.update();
+    });
+
+    // Log performance summary every 10 seconds in development
+    if (process.env.NODE_ENV === 'development') {
+      setInterval(() => {
+        this.performanceMonitor.logPerformanceSummary();
+      }, 10000);
+    }
+  }
+
+  private stopPerformanceMonitoring(): void {
+    if (this.phaserGame) {
+      this.phaserGame.events.off('step');
+    }
+    this.performanceMonitor.reset();
+  }
+
+  // =============================================================================
+  // IMPROVED INPUT HANDLING
+  // =============================================================================
+
+  private shouldPreventDefault(key: string): boolean {
+    // Prevent default for keys we handle in the game
+    const gameKeys = /^[a-zA-Z]$|^Backspace$|^Enter$|^Space$/;
+    return gameKeys.test(key);
+  }
+
+  private isValidGameKeystroke(key: string): boolean {
+    // Only allow English letters, Backspace, Enter, and Space
+    return /^[a-zA-Z]$/.test(key) || ['Backspace', 'Enter', ' '].includes(key);
   }
 }
